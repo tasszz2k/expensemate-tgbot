@@ -37,17 +37,53 @@ I. Expense group:
 II. Expense category:
 
 1. Unclassified / Chưa phân loại
+    - Vietnamese Alias: CPL
+    - English Alias: UC
+
 2. Food / Ăn uống
+    - Vietnamese Alias: AU
+    - English Alias: F
+
 3. Housing / Nhà ở
+    - Vietnamese Alias: NO
+    - English Alias: H
+
 4. Transportation / Giao thông vận tải
+    - Vietnamese Alias: GTVT/GT
+    - English Alias: T
+
 5. Utilities / Tiện ích
+    - Vietnamese Alias: TI
+    - English Alias: U
+
 6. Healthcare / Sức khỏe
+    - Vietnamese Alias: SK
+    - English Alias: H
+
 7. Entertainment / Giải trí
+    - Vietnamese Alias: GT
+    - English Alias: EN
+
 8. Education / Giáo dục
+    - Vietnamese Alias: GD
+    - English Alias: ED
+
 9. Clothing / Quần áo
+    - Vietnamese Alias: QA
+    - English Alias: C
+
 10. Personal Care / Chăm sóc cá nhân
+    - Vietnamese Alias: CSCN
+    - English Alias: PC
+
 11. Miscellaneous / Đồ linh tinh
+    - Vietnamese Alias: DLT/LT
+    - English Alias: M
+
 12. Other / Khác
+    - Vietnamese Alias: K
+    - English Alias: O
+
 
 ### 1. Handle all commands when received
 
@@ -56,10 +92,11 @@ II. Expense category:
 ### 2. Command: `/start` handler
 
 - [ ] Greet user and guide user how to use the bot. Using `/gsheets` command to configure Google Sheets for themselves.
+- [ ] Show a guide message how to add new expense with `/expenses_add` command.
 
 ### 3. Command: `/expenses` handler
 
-- [ ] Show the short description with sub-command buttons. There are sub-commands: `add`, `view`, `update`, `delete`, `report`
+- [ ] Show the short description with sub-command buttons. There are sub-commands: `add`, `view`, `update`, `delete`, `report`, `help`
 - [ ] **Handle `add` (or `/expenses_add` sub-command) button:**
     + User input: each on a new line: `expense name`, `amount`,`group`, `category`, `date`
       ```
@@ -109,10 +146,61 @@ II. Expense category:
        [...]
        ```
 
-- [ ] **Handle `/update` button:**
-- [ ] **Handle `/delete` button:**
-- [ ] **Handle `/report` button:**
+- [ ] **Handle `update` button:**
+- [ ] **Handle `delete` button:**
+- [ ] **Handle `report` button:**
+- [ ] **Handle `help` button:**
+    + Show the list of **Expense Group** and **Expense Category** with short descriptions.
+    + Format:
+      ```
+      Here are the list of Expense Group and Expense Category:
+      ---
+      Expense Group:
+      1. I / INCOME / thu nhập
+      2. MH / MUST HAVE / chi tiêu thiết yếu
+      3. NTH / NICE TO HAVE / không phải chi tiêu thiết yếu, nhưng nên chi, có thì tốt
+      4. W / WASTE / chi tiêu không cần thiết, lãng phí
+      5. O / OTHER / khác
+      ---
+      Expense Category:
+      1. Unclassified / Chưa phân loại
+          - Vietnamese Alias: CPL
+          - English Alias: UC
+      2. Food / Ăn uống
+          - Vietnamese Alias: AU
+          - English Alias: F
+      3. Housing / Nhà ở
+          - Vietnamese Alias: NO
+          - English Alias: H
+      4. Transportation / Giao thông vận tải
+          - Vietnamese Alias: GTVT
+          - English Alias: T
+      5. Utilities / Tiện ích
+          - Vietnamese Alias: TI
+          - English Alias: U
+      6. Healthcare / Sức khỏe
+          - Vietnamese Alias: SK
+          - English Alias: H
+      7. Entertainment / Giải trí
+          - Vietnamese Alias: GT
+          - English Alias: EN
+      8. Education / Giáo dục
+          - Vietnamese Alias: GD
+          - English Alias: ED
+      9. Clothing / Quần áo
+          - Vietnamese Alias: QA
+          - English Alias: C
+      10. Personal Care / Chăm sóc cá nhân
+          - Vietnamese Alias: CSCN
+          - English Alias: PC
+      11. Miscellaneous / Đồ linh tinh
+          - Vietnamese Alias: DLT
+          - English Alias: M
+      12. Other / Khác
+          - Vietnamese Alias: K
+          - English Alias: O
 
+            ```
 ### 3. Command: `/gsheets` handler
 
 - [ ] Show the list of buttons for Google Sheets management:  `list`, `select`, `configure`.
@@ -201,3 +289,4 @@ II. Expense category:
 
 ### 6. Command: `/help` handler
 - [ ] Show the list of buttons for help with short descriptions: `/hello`, `/expenses`, `/gsheets`, `/settings`, `/feedback`, `/help`, ...
+
