@@ -1,0 +1,13 @@
+Unclassified / Chưa phân loại
+Food / Ăn uống
+Housing / Nhà ở
+Transportation / Đi lại
+Utilities / Tiện ích
+Healthcare / Sức khỏe
+Entertainment / Giải trí
+Education / Giáo dục
+Clothing / Quần áo
+Personal Care / Chăm sóc cá nhân
+Miscellaneous / Đồ linh tinh
+Travel / Du lịch
+Other / Khác

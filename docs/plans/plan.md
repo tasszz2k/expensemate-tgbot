@@ -7,6 +7,7 @@
 - [x] Configure supported commands: `/start`, `/expenses`, `/expenses_add`, `gsheets`, `/settings`, `/feedback`, `/help`, ...
 - [x] Configure API token
 - [x] Command configurations:
+
 ```text
 start - Greet user and guide them on using the bot. Configure Google Sheets with /gsheets.
 expenses - Manage expenses with sub-commands
@@ -48,8 +49,8 @@ II. Expense category:
     - Vietnamese Alias: NO
     - English Alias: H
 
-4. Transportation / Giao thông vận tải
-    - Vietnamese Alias: GTVT/GT
+4. Transportation / Đi lại
+    - Vietnamese Alias: DL
     - English Alias: T
 
 5. Utilities / Tiện ích
@@ -80,10 +81,13 @@ II. Expense category:
     - Vietnamese Alias: DLT/LT
     - English Alias: M
 
-12. Other / Khác
+12. Travel / Du lịch
+    - Vietnamese Alias: DL
+    - English Alias: T
+
+13. Other / Khác
     - Vietnamese Alias: K
     - English Alias: O
-
 
 ### 1. Handle all commands when received
 
@@ -172,8 +176,8 @@ II. Expense category:
       3. Housing / Nhà ở
           - Vietnamese Alias: NO
           - English Alias: H
-      4. Transportation / Giao thông vận tải
-          - Vietnamese Alias: GTVT
+      4. Transportation / Đi lại
+          - Vietnamese Alias: DL
           - English Alias: T
       5. Utilities / Tiện ích
           - Vietnamese Alias: TI
@@ -196,11 +200,14 @@ II. Expense category:
       11. Miscellaneous / Đồ linh tinh
           - Vietnamese Alias: DLT
           - English Alias: M
-      12. Other / Khác
+      12. Travel / Du lịch
+          - Vietnamese Alias: DL
+          - English Alias: T
+      13. Other / Khác
           - Vietnamese Alias: K
           - English Alias: O
-
             ```
+
 ### 3. Command: `/gsheets` handler
 
 - [ ] Show the list of buttons for Google Sheets management:  `list`, `select`, `configure`.
@@ -261,6 +268,7 @@ II. Expense category:
 - **For admin only**
 
 ### 5. Command: `/feedback` handler
+
 - [ ] Show the list of buttons for feedback: `report bug`, `suggest feature`, `say thanks`
 - [ ] **Handle `report bug` button:**
     + User input: `bug description`
@@ -288,5 +296,6 @@ II. Expense category:
         ```
 
 ### 6. Command: `/help` handler
+
 - [ ] Show the list of buttons for help with short descriptions: `/hello`, `/expenses`, `/gsheets`, `/settings`, `/feedback`, `/help`, ...
 
