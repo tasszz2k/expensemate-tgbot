@@ -30,11 +30,16 @@ help - Show a list of available commands with descriptions
 I. Expense group:
 
 1. INCOME / thu nhập
+    - Alias: I
 2. MUST HAVE / chi tiêu thiết yếu
+    - Alias: MH
 3. NICE TO HAVE / không phải chi tiêu thiết yếu, nhưng nên chi, có thì tốt
+    - Alias: NTH
 4. WASTE / chi tiêu không cần thiết, lãng phí
+    - Alias: W
 5. OTHER / khác
-
+    - Alias: O
+   
 II. Expense category:
 
 1. Unclassified / Chưa phân loại
@@ -160,11 +165,16 @@ II. Expense category:
       Here are the list of Expense Group and Expense Category:
       ---
       Expense Group:
-      1. I / INCOME / thu nhập
-      2. MH / MUST HAVE / chi tiêu thiết yếu
-      3. NTH / NICE TO HAVE / không phải chi tiêu thiết yếu, nhưng nên chi, có thì tốt
-      4. W / WASTE / chi tiêu không cần thiết, lãng phí
-      5. O / OTHER / khác
+      1. INCOME / thu nhập
+          - Alias: I
+      2. MUST HAVE / chi tiêu thiết yếu
+          - Alias: MH
+      3. NICE TO HAVE / không phải chi tiêu thiết yếu, nhưng nên chi, có thì tốt
+          - Alias: NTH
+      4. WASTE / chi tiêu không cần thiết, lãng phí
+          - Alias: W
+      5. OTHER / khác
+          - Alias: O
       ---
       Expense Category:
       1. Unclassified / Chưa phân loại
