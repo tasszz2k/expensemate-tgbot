@@ -1,7 +1,14 @@
 package main
 
-import "log/slog"
+import (
+	"expensemate-tgbot/internal/servers"
+	"expensemate-tgbot/pkg/configs"
+)
 
 func main() {
-	slog.Info("Expensemate bot is running...")
+	expensemateBot := servers.NewServer(servers.ServerConfig{AppConf: configs.Get()})
+	// start `expensemate bot`
+	if err := expensemateBot.Start(); err != nil {
+		panic(err)
+	}
 }

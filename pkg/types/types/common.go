@@ -50,7 +50,7 @@ func (t Time) MarshalJSON() ([]byte, error) {
 	return json.Marshal(timeutils.FormatAPI(t.Time))
 }
 
-func (t Time) UnmarshalJSON(data []byte) (err error) {
+func (t *Time) UnmarshalJSON(data []byte) (err error) {
 	t.Time, err = timeutils.ParseAPILocal(string(data))
 	return
 }
