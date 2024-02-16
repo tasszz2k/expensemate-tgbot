@@ -27,23 +27,40 @@ type Expense struct {
 func ParseTextToExpense(text string) (Expense, error) {
 	rows := strings.Split(text, "\n")
 	if len(rows) < 2 {
-		return Expense{}, errors.New("invalid expense text")
+		return Expense{}, errors.New("invalid format, please provide the details of the expense in the following format")
 	}
 	// fill to fix a length array with size = 6
 	rows = append(rows, make([]string, 6-len(rows))...)
 
 	amount, err := cast.ToUint64E(rows[1])
 	if err != nil {
-		return Expense{}, fmt.Errorf("invalid amount: %w", err)
+		return Expense{}, fmt.Errorf("invalid amount: %s is not a valid number", rows[1])
 	}
 
-	group, ok := expensetypes.GetGroupByAlias(strings.TrimSpace(rows[2]))
-	if !ok {
-		return Expense{}, fmt.Errorf("invalid group: %s", rows[2])
+	groupTextInput := strings.TrimSpace(rows[2])
+	var group expensetypes.Group
+	var ok bool
+	if groupTextInput == "" {
+		group = expensetypes.GroupMustHave
+	} else {
+		if group, ok = expensetypes.GetGroupByAlias(strings.TrimSpace(rows[2])); !ok {
+			return Expense{}, fmt.Errorf(
+				"invalid group: %s\nplease click /expenses_groups to see the list of supported groups",
+				rows[2],
+			)
+		}
 	}
-	category, ok := expensetypes.GetCategoryByAlias(strings.TrimSpace(rows[3]))
-	if !ok {
-		return Expense{}, fmt.Errorf("invalid category: %s", rows[3])
+	categoryTextInput := strings.TrimSpace(rows[3])
+	var category expensetypes.Category
+	if categoryTextInput == "" {
+		category = expensetypes.CategoryUnclassified
+	} else {
+		if category, ok = expensetypes.GetCategoryByAlias(categoryTextInput); !ok {
+			return Expense{}, fmt.Errorf(
+				"invalid category: %s\nplease click /expenses_categories to see the list of supported categories",
+				rows[3],
+			)
+		}
 	}
 
 	date := time.Now()

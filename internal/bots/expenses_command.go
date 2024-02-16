@@ -163,9 +163,11 @@ func (e *Expensemate) handleExpensesAdd(
 ) (tgbotapi.MessageConfig, error) {
 	text := message.Text
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
+	msg.ReplyToMessageID = message.MessageID
+
 	expense, err := models.ParseTextToExpense(text)
 	if err != nil {
-		msg.Text = fmt.Sprintf("Invalid expense input: %s", err)
+		msg.Text = fmt.Sprintf("<b>Invalid expense input!</b>\n%s", err)
 		return msg, nil
 	}
 
@@ -173,7 +175,6 @@ func (e *Expensemate) handleExpensesAdd(
 	expense.Id = 1
 	// return the saved expense
 	msg.Text = expense.String()
-	msg.ReplyToMessageID = message.MessageID
 
 	e.removeConversationState(ctx, message.Chat.ID)
 	return msg, nil
