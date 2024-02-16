@@ -7,7 +7,7 @@ import (
 )
 
 func (e *Expensemate) handleGSheetsCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")

@@ -14,7 +14,7 @@ import (
 )
 
 func (e *Expensemate) handleExpensesCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
@@ -38,7 +38,7 @@ func (e *Expensemate) handleExpensesCommand(
 }
 
 func (e *Expensemate) handleExpensesAddCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
@@ -143,8 +143,8 @@ Here are the supported aliases for expense groups and categories:
     - English Alias: M
 
 12. Travel / Du lịch
-    - Vietnamese Alias: DL
-    - English Alias: T
+    - Vietnamese Alias: Du Lich
+    - English Alias: TV
 
 13. Other / Khác
     - Vietnamese Alias: K

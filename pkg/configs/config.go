@@ -15,14 +15,14 @@ import (
 
 type (
 	AppConfig struct {
-		TelegramBot  TelegramBot  `yaml:"telegram_bot" validate:"required"`
-		GoogleApis   GoogleApis   `yaml:"google_apis" validate:"required"`
+		TelegramBot  TelegramBot  `yaml:"telegram_bot"  validate:"required"`
+		GoogleApis   GoogleApis   `yaml:"google_apis"   validate:"required"`
 		GoogleSheets GoogleSheets `yaml:"google_sheets" validate:"required"`
 	}
 
 	TelegramBot struct {
 		ApiToken string `yaml:"api_token" validate:"required"`
-		Timeout  int    `yaml:"timeout" validate:"required"`
+		Timeout  int    `yaml:"timeout"   validate:"required"`
 		Debug    bool   `yaml:"debug"`
 	}
 

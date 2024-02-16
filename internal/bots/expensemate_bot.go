@@ -43,8 +43,9 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 
 	// Extract chat ID and text from the message
 	incomingMessage := update.Message
+	switch {
+	case incomingMessage != nil:
 
-	if incomingMessage != nil {
 		chatID := incomingMessage.Chat.ID
 		//text := incomingMessage.Text
 
@@ -87,6 +88,11 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 			switch state {
 			case fmt.Sprintf("%s:%s", tgtypes.CommandExpenses, expensetypes.ActionAdd):
 				msg, err = e.handleExpensesAdd(ctx, incomingMessage)
+			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, ""):
+			// todo: implement this
+			default:
+				slog.Error("Unsupported conversation state")
+				return fmt.Errorf("unsupported conversation state")
 			}
 		}
 
@@ -94,7 +100,8 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 			slog.Error("Error while handling the command: %v", err)
 			return err
 		}
-	} else if update.CallbackQuery != nil {
+
+	case update.CallbackQuery != nil:
 		callbackQuery := update.CallbackQuery
 		data := callbackQuery.Data
 
@@ -109,7 +116,12 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 			slog.Error("Unsupported callback command")
 			return fmt.Errorf("unsupported callback command")
 		}
-	} else {
+
+		if err != nil {
+			slog.Error("Error while handling the callback: %v", err)
+			return err
+		}
+	default:
 		slog.Error("Unsupported update type")
 		return fmt.Errorf("unsupported update type")
 	}
@@ -130,5 +142,4 @@ func NewExpensemate(config ExpensemateConfig) BotHandler {
 		botAPI:             config.BotAPI,
 		conversationStates: make(map[int64]string),
 	}
-
 }

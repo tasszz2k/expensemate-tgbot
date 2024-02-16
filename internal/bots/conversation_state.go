@@ -5,7 +5,7 @@ import (
 )
 
 func (e *Expensemate) updateConversationState(
-	ctx context.Context,
+	_ context.Context,
 	chatID int64,
 	state string,
 ) {
@@ -16,7 +16,7 @@ func (e *Expensemate) updateConversationState(
 }
 
 func (e *Expensemate) getConversationState(
-	ctx context.Context,
+	_ context.Context,
 	chatID int64,
 ) string {
 	e.mu.RLock()
@@ -28,7 +28,7 @@ func (e *Expensemate) getConversationState(
 }
 
 func (e *Expensemate) removeConversationState(
-	ctx context.Context,
+	_ context.Context,
 	chatID int64,
 ) {
 	e.mu.Lock()

@@ -1,0 +1,161 @@
+run:
+  timeout: 5m
+  tests: true
+
+#issues:
+#  exclude-rules:
+#    - path: v1/internal/
+#      linters:
+#        - interfacebloat
+#        - paralleltest
+#        - testpackage
+##        - testifylint # not much error, enable this later
+
+linters-settings:
+  exhaustive:
+    check:
+      - switch
+      # - map
+    default-signifies-exhaustive: true
+
+  godox:
+    keywords:
+      - FIXME
+
+#  goimports:
+#    local-prefixes:
+
+  golint:
+    min-confidence: 0.7
+
+  gosec:
+    exclude-generated: true
+    severity: low
+    confidence: low
+
+  govet:
+    check-shadowing: true
+
+    settings:
+      # Analyzer name, run `go tool vet help` to see all analyzers.
+      printf:
+        funcs:
+          - (github.com/sirupsen/logrus.Entry).Infof
+          - (github.com/sirupsen/logrus.Entry).Warnf
+          - (github.com/sirupsen/logrus.Entry).Errorf
+          - (github.com/sirupsen/logrus.Entry).Fatalf
+      shadow:
+        strict: true
+
+    enable-all: false
+    disable-all: false
+
+  gocritic:
+    disabled-checks:
+      - commentFormatting
+
+  interfacebloat:
+    max: 8
+
+  makezero:
+    always: false
+
+  misspell:
+    locale: US
+    ignore-words:
+      - CANCELLED
+
+  nestif:
+    min-complexity: 5
+
+  paralleltest:
+    ignore-missing: false
+    ignore-missing-subtests: false
+
+  tagalign:
+    align: true
+    sort: true
+    order:
+      - mapstructure
+      - structs
+      - json
+      - yaml
+      - yml
+      - toml
+      - path
+      - form
+      - binding
+      - validate
+      - default
+    strict: false
+
+  whitespace:
+    multi-if: false
+    multi-func: false
+
+linters:
+  disable-all: false
+
+  enable:
+    - asciicheck
+    - decorder
+    - dogsled
+    - durationcheck
+    - errcheck
+    # - errchkjson
+    - errname
+    - errorlint
+    - execinquery
+    - exhaustive
+    - exportloopref
+    - forbidigo
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    # - gocognit
+    - gocritic
+    - godox
+    - gofmt
+    - goheader
+    - goimports
+    - goprintffuncname
+    # - gosec
+    - gosmopolitan
+    # - govet
+    - grouper
+    - importas
+    - ineffassign
+    - makezero
+    - mirror
+    - misspell
+    # - nestif
+    - nilerr
+    - nosprintfhostport
+    - paralleltest
+    - testpackage
+#    - testifylint
+    - predeclared
+    # - promlinter
+    - reassign
+    - rowserrcheck
+    # - sqlclosecheck
+    # - staticcheck
+    # - stylecheck
+    - tagalign
+    - tenv
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+    - zerologlint
+    - interfacebloat
+    #- lll
+    #- dupl
+    #- dupword
+
+  disable:
+    - typecheck
+
+  fast: true

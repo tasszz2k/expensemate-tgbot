@@ -7,7 +7,7 @@ import (
 )
 
 func (e *Expensemate) handleStartCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
@@ -17,7 +17,7 @@ func (e *Expensemate) handleStartCommand(
 }
 
 func (e *Expensemate) handleHelpCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
@@ -33,7 +33,7 @@ func (e *Expensemate) handleHelpCommand(
 }
 
 func (e *Expensemate) handleSettingsCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
@@ -42,7 +42,7 @@ func (e *Expensemate) handleSettingsCommand(
 }
 
 func (e *Expensemate) handleFeedbackCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
@@ -51,7 +51,7 @@ func (e *Expensemate) handleFeedbackCommand(
 }
 
 func (e *Expensemate) handleDefaultCommand(
-	ctx context.Context,
+	_ context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
