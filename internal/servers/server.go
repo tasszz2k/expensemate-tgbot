@@ -1,6 +1,7 @@
 package servers
 
 import (
+	"context"
 	"log"
 	"log/slog"
 
@@ -12,7 +13,7 @@ import (
 
 type server struct {
 	botAPI *tgbotapi.BotAPI
-	bot    bots.Botter
+	bot    bots.BotHandler
 }
 
 type ServerConfig struct {
@@ -30,7 +31,7 @@ func NewServer(config ServerConfig) Server {
 		log.Panic(err)
 	}
 
-	botAPI.Debug = true
+	botAPI.Debug = config.AppConf.TelegramBot.Debug
 	log.Printf("Authorized on account %s", botAPI.Self.UserName)
 
 	// init bot
@@ -49,20 +50,13 @@ func (b server) Start() error {
 }
 
 func (b server) run() {
+	ctx := context.Background()
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := b.botAPI.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message == nil { // ignore any non-Message updates
-			continue
-		}
-
-		if !update.Message.IsCommand() { // ignore any non-command Messages
-			continue
-		}
-
-		err := b.bot.Handle(update)
+		err := b.bot.Handle(ctx, update)
 
 		if err != nil {
 			slog.Error("error handling update: ", err)

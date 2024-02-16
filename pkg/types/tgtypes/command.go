@@ -1,5 +1,9 @@
 package tgtypes
 
+import (
+	"strings"
+)
+
 type Command string
 
 const (
@@ -11,3 +15,18 @@ const (
 	CommandSettings   Command = "settings"
 	CommandFeedback   Command = "feedback"
 )
+
+// ParseCallbackData parses the callback data and returns the command and the data.
+// callback data format: [command]:[sub_command_1]:[sub_command_1.n]
+func ParseCallbackData(data string) (command Command, subCommand string) {
+	commands := strings.Split(data, ":")
+	command = Command(commands[0])
+	if len(commands) > 1 {
+		subCommand = strings.Join(commands[1:], ":")
+	}
+	return
+}
+
+func BuildCallbackData(command Command, subCommand ...string) string {
+	return string(command) + ":" + strings.Join(subCommand, ":")
+}

@@ -2,7 +2,10 @@ package timeutils
 
 import "time"
 
-const APIFormat = "02/01/2006 15:04:05"
+const (
+	APIFormat      = "02/01/2006 15:04:05"
+	DateOnlyFormat = "02/01/2006"
+)
 
 var LocLocal *time.Location
 
@@ -16,6 +19,10 @@ func init() {
 
 func FormatAPI(t time.Time) string {
 	return t.Format(APIFormat)
+}
+
+func FormatDateOnly(t time.Time) string {
+	return t.Format(DateOnlyFormat)
 }
 
 func ParseAPILocal(input string) (time.Time, error) {

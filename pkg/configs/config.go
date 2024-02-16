@@ -23,6 +23,7 @@ type (
 	TelegramBot struct {
 		ApiToken string `yaml:"api_token" validate:"required"`
 		Timeout  int    `yaml:"timeout" validate:"required"`
+		Debug    bool   `yaml:"debug"`
 	}
 
 	GoogleApis struct {

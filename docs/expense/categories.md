@@ -45,8 +45,8 @@ II. Expense category:
     - English Alias: M
 
 12. Travel / Du lịch
-    - Vietnamese Alias: DL
-    - English Alias: T
+    - Vietnamese Alias: Du Lich
+    - English Alias: tv
 
 13. Other / Khác
     - Vietnamese Alias: K
