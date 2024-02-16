@@ -38,11 +38,29 @@ func (e *Expensemate) handleExpensesCommand(
 }
 
 func (e *Expensemate) handleExpensesAddCommand(
-	_ context.Context,
+	ctx context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
-	msg.Text = "You can quickly add an expense."
+	msg.Text = fmt.Sprintf(
+		`
+Please provide the details of the expense in the following format: 📑
+---
+[expense name] <b>(*)</b> 🖋️ 
+[amount] <b>(*)</b> 🖋️
+[group] <i>(default "OTHER")</i> 🖋️ <i> click /expenses_help to see the list of supported groups</i>
+[category] <i>(default "Unclassified")</i> 🖋️ <i> click /expenses_help to see the list of supported categories</i>
+[date] <i>(auto-filled: %s)</i>
+[note] 
+`, timeutils.FormatDateOnly(time.Now()),
+	)
+	// update conversation state
+	e.updateConversationState(
+		ctx, incomingMessage.Chat.ID, tgtypes.BuildCallbackData(
+			tgtypes.
+				CommandExpenses, expensetypes.ActionAdd.String(),
+		),
+	)
 	return msg, nil
 }
 
@@ -53,35 +71,56 @@ func (e *Expensemate) handleExpensesCallback(
 	callbackQueryData := query.Data
 	_, subCommand := tgtypes.ParseCallbackData(callbackQueryData)
 	action := expensetypes.Action(subCommand)
+	var msg tgbotapi.MessageConfig
 
-	msg := tgbotapi.NewMessage(query.Message.Chat.ID, "")
 	switch action {
 	case expensetypes.ActionAdd:
-		msg.Text = fmt.Sprintf(
-			`
-Please provide the details of the expense in the following format: 📑
----
-[expense name] <b>(*)</b> 🖋️ 
-[amount] <b>(*)</b> 🖋️
-[group] <i>(default "OTHER")</i> 🖋️ <i> click /expenses_groups to see the list of supported groups</i>
-[category] <i>(default "Unclassified")</i> 🖋️ <i> click /expenses_categories to see the list of supported categories</i>
-[date] <i>(auto-filled: %s)</i>
-[note] 
-`, timeutils.FormatDateOnly(time.Now()),
-		)
-		// update conversation state
-		e.updateConversationState(
-			ctx, query.Message.Chat.ID, tgtypes.BuildCallbackData(
-				tgtypes.
-					CommandExpenses, expensetypes.ActionAdd.String(),
-			),
-		)
+		msg, _ = e.handleExpensesAddCommand(ctx, query.Message)
 	case expensetypes.ActionView:
+		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
 		msg.Text = "Here are your 5 latest expenses:"
 	case expensetypes.ActionReport:
+		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
 		msg.Text = "Here is your expense report:"
 	case expensetypes.ActionHelp:
-		msg.Text = `
+		msg, _ = e.handleExpenseHelpCommand(ctx, query.Message)
+	default:
+		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
+		msg.Text = "Unfortunately, We have not supported this action yet."
+	}
+
+	return msg, nil
+}
+
+func (e *Expensemate) handleExpensesAdd(
+	ctx context.Context,
+	message *tgbotapi.Message,
+) (tgbotapi.MessageConfig, error) {
+	text := message.Text
+	msg := tgbotapi.NewMessage(message.Chat.ID, "")
+	msg.ReplyToMessageID = message.MessageID
+
+	expense, err := models.ParseTextToExpense(text)
+	if err != nil {
+		msg.Text = fmt.Sprintf("<b>Invalid expense input!</b>\n%s", err)
+		return msg, nil
+	}
+
+	// todo: save the expense to the database
+	expense.Id = 1
+	// return the saved expense
+	msg.Text = expense.String()
+
+	e.removeConversationState(ctx, message.Chat.ID)
+	return msg, nil
+}
+
+func (e *Expensemate) handleExpenseHelpCommand(
+	_ context.Context,
+	message *tgbotapi.Message,
+) (tgbotapi.MessageConfig, error) {
+	msg := tgbotapi.NewMessage(message.Chat.ID, "")
+	msg.Text = `
 Here are the supported aliases for expense groups and categories:
 <b>I. Expense groups:</b>
 
@@ -150,32 +189,5 @@ Here are the supported aliases for expense groups and categories:
     - Vietnamese Alias: K
     - English Alias: O
 `
-	default:
-		msg.Text = "Unfortunately, We have not supported this action yet."
-	}
-
-	return msg, nil
-}
-
-func (e *Expensemate) handleExpensesAdd(
-	ctx context.Context,
-	message *tgbotapi.Message,
-) (tgbotapi.MessageConfig, error) {
-	text := message.Text
-	msg := tgbotapi.NewMessage(message.Chat.ID, "")
-	msg.ReplyToMessageID = message.MessageID
-
-	expense, err := models.ParseTextToExpense(text)
-	if err != nil {
-		msg.Text = fmt.Sprintf("<b>Invalid expense input!</b>\n%s", err)
-		return msg, nil
-	}
-
-	// todo: save the expense to the database
-	expense.Id = 1
-	// return the saved expense
-	msg.Text = expense.String()
-
-	e.removeConversationState(ctx, message.Chat.ID)
 	return msg, nil
 }

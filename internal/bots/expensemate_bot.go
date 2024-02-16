@@ -71,6 +71,8 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 				msg, err = e.handleExpensesCommand(ctx, incomingMessage)
 			case tgtypes.CommandExpenseAdd:
 				msg, err = e.handleExpensesAddCommand(ctx, incomingMessage)
+			case tgtypes.CommandExpenseHelp:
+				msg, err = e.handleExpenseHelpCommand(ctx, incomingMessage)
 			case tgtypes.CommandGSheets:
 				msg, err = e.handleGSheetsCommand(ctx, incomingMessage)
 			case tgtypes.CommandSettings:

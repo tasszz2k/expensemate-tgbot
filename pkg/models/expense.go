@@ -45,7 +45,7 @@ func ParseTextToExpense(text string) (Expense, error) {
 	} else {
 		if group, ok = expensetypes.GetGroupByAlias(strings.TrimSpace(rows[2])); !ok {
 			return Expense{}, fmt.Errorf(
-				"invalid group: %s\nplease click /expenses_groups to see the list of supported groups",
+				"invalid group: %s\nplease click /expenses_help to see the list of supported groups",
 				rows[2],
 			)
 		}
@@ -57,7 +57,7 @@ func ParseTextToExpense(text string) (Expense, error) {
 	} else {
 		if category, ok = expensetypes.GetCategoryByAlias(categoryTextInput); !ok {
 			return Expense{}, fmt.Errorf(
-				"invalid category: %s\nplease click /expenses_categories to see the list of supported categories",
+				"invalid category: %s\nplease click /expenses_help to see the list of supported categories",
 				rows[3],
 			)
 		}
