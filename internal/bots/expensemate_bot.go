@@ -88,6 +88,7 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 				msg, err = e.handleExpensesAddCommand(ctx, incomingMessage)
 			case tgtypes.CommandExpenseHelp:
 				msg, err = e.handleExpenseHelpCommand(ctx, incomingMessage)
+				e.endConversation(ctx, chatID)
 			case tgtypes.CommandGSheets:
 				msg, err = e.handleGSheetsCommand(ctx, incomingMessage)
 			case tgtypes.CommandSettings:
@@ -95,6 +96,11 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 				e.endConversation(ctx, chatID)
 			case tgtypes.CommandFeedback:
 				msg, err = e.handleFeedbackCommand(ctx, incomingMessage)
+				// todo: remove this line when feedback is implemented
+				e.endConversation(
+					ctx,
+					chatID,
+				)
 			default:
 				msg, err = e.handleDefaultCommand(ctx, incomingMessage)
 				e.endConversation(ctx, chatID)
@@ -107,6 +113,8 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 				msg, err = e.handleExpensesAdd(ctx, incomingMessage)
 			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionConfigure):
 				msg, err = e.handleGSheetsConfigure(ctx, incomingMessage)
+			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionUpdateCurrentPage):
+				msg, err = e.handleGSheetsUpdateCurrentPage(ctx, incomingMessage)
 			default:
 				slog.Error("Unsupported conversation state")
 				e.endConversation(ctx, chatID)

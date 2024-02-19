@@ -8,23 +8,32 @@ import (
 )
 
 // ParseAmount processes the amount string and converts "k" and "m" to their respective multipliers.
-func ParseAmount(amountStr string) string {
-	if strings.Contains(amountStr, "k") {
-		multiplier := 1000
-		value, err := strconv.ParseFloat(strings.Replace(amountStr, "k", "", 1), 64)
+func ParseAmount(amountStr string) int64 {
+	var multiplier int64
+
+	switch {
+	case strings.Contains(amountStr, "k"):
+		multiplier = 1000
+	case strings.Contains(amountStr, "m"):
+		multiplier = 1000000
+	default:
+		// If no multiplier is found, return the input as is
+		value, err := strconv.ParseInt(amountStr, 10, 64)
 		if err != nil {
-			return ""
+			return 0 // Return 0 in case of error
 		}
-		return strconv.FormatFloat(value*float64(multiplier), 'f', 0, 64)
-	} else if strings.Contains(amountStr, "m") {
-		multiplier := 1000000
-		value, err := strconv.ParseFloat(strings.Replace(amountStr, "m", "", 1), 64)
-		if err != nil {
-			return ""
-		}
-		return strconv.FormatFloat(value*float64(multiplier), 'f', 0, 64)
+		return value
 	}
-	return amountStr
+
+	valueStr := strings.ReplaceAll(amountStr, "k", "")
+	valueStr = strings.ReplaceAll(valueStr, "m", "")
+
+	value, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		return 0 // Return 0 in case of error
+	}
+
+	return int64(value * float64(multiplier))
 }
 
 // FormatVND Format number to money format

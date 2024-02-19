@@ -45,6 +45,7 @@ func ParseRowToExpense(row []any) (Expense, error) {
 }
 
 func ParseTextToExpense(text string) (Expense, error) {
+	var err error
 	rows := strings.Split(text, "\n")
 	if len(rows) < 2 {
 		return Expense{}, errors.New("invalid format, please provide the details of the expense in the following format")
@@ -52,8 +53,8 @@ func ParseTextToExpense(text string) (Expense, error) {
 	// fill to fix a length array with size = 6
 	rows = append(rows, make([]string, 6-len(rows))...)
 
-	amount, err := cast.ToUint64E(rows[1])
-	if err != nil {
+	amount := currencyutils.ParseAmount(rows[1])
+	if amount == 0 {
 		return Expense{}, fmt.Errorf("invalid amount: %s is not a valid number", rows[1])
 	}
 

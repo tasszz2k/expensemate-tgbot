@@ -54,6 +54,12 @@ func (e *Expensemate) handleGSheetsCommand(
 			),
 			tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
 		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(
+				"Update Current Page",
+				"gsheets:update_current_page",
+			),
+		),
 	)
 
 	return msg, nil
@@ -64,8 +70,8 @@ func (e *Expensemate) handleGSheetsCallback(
 	query *tgbotapi.CallbackQuery,
 ) (tgbotapi.MessageConfig, error) {
 	callbackQueryData := query.Data
-	_, subCommand := tgtypes.ParseCallbackData(callbackQueryData)
-	action := gsheettypes.Action(subCommand)
+	_, subCommands := tgtypes.ParseCallbackData(callbackQueryData)
+	action := gsheettypes.Action(subCommands[0])
 	var msg tgbotapi.MessageConfig
 
 	switch action {
@@ -82,9 +88,13 @@ You can configure a Google Sheets to store your expenses.
 <b>housematee-gsheets@housematee.iam.gserviceaccount.com</b> (required).
 <i> This is service account only, no one can access your Google Sheets except you.</i>
 `
+		e.endConversation(ctx, query.Message.Chat.ID)
+	case gsheettypes.ActionUpdateCurrentPage:
+		msg, _ = e.handleGSheetsUpdateCurrentPageCallback(ctx, query, subCommands)
 	default:
 		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
 		msg.Text = "Unfortunately, We have not supported this action yet."
+		e.endConversation(ctx, query.Message.Chat.ID)
 	}
 
 	return msg, nil
@@ -150,4 +160,94 @@ func (e *Expensemate) handleGSheetsConfigure(
 
 	msg.Text = "Google Sheets is configured successfully. You can view it by clicking the /gsheets command."
 	return msg, nil
+}
+
+func (e *Expensemate) handleGSheetsUpdateCurrentPageCallback(
+	ctx context.Context,
+	query *tgbotapi.CallbackQuery,
+	subCommands []string,
+) (tgbotapi.MessageConfig, error) {
+	msg := tgbotapi.NewMessage(query.Message.Chat.ID, "")
+	currentMonth := fmt.Sprintf(
+		"%d_%02d",
+		timeutils.GetCurrentDay().Year(),
+		timeutils.GetCurrentDay().Month(),
+	)
+	var err error
+	switch {
+	case len(subCommands) == 1:
+		msg.Text = fmt.Sprintf(
+			`
+Please input the sheet name following the format <b>year_month</b> (e.g. 2024_01).
+Or you can click the button below to update the current page to the current month => <b>%[1]s</b>.
+Make sure you cloned the template from the bot.
+`, currentMonth,
+		)
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(
+					fmt.Sprintf(
+						"Update current page to %s",
+						currentMonth,
+					), "gsheets:update_current_page:confirm",
+				),
+			),
+		)
+		e.startConversation(
+			ctx,
+			query.Message.Chat.ID,
+			tgtypes.BuildCallbackData(
+				tgtypes.CommandGSheets,
+				gsheettypes.ActionUpdateCurrentPage.String(),
+			),
+		)
+	case len(subCommands) >= 2 && subCommands[1] == "confirm":
+		// update the current page to the current month
+		// the user has confirmed to update the current page to the current month
+		msg, err = e.updateCurrentPageValue(ctx, query.Message, currentMonth)
+		if err != nil {
+			return msg, nil
+		}
+	}
+	return msg, nil
+}
+
+func (e *Expensemate) updateCurrentPageValue(
+	ctx context.Context,
+	message *tgbotapi.Message,
+	newCurrentPageValue string,
+) (tgbotapi.MessageConfig, error) {
+	msg := tgbotapi.NewMessage(message.Chat.ID, "")
+
+	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
+	if err != nil {
+		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
+			" Click the button below to configure it."
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
+				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+			),
+		)
+		return msg, nil
+	}
+	spreadsheetDocId := mapping.SpreadsheetDocId()
+	if err = e.updateCurrentPage(ctx, spreadsheetDocId, newCurrentPageValue); err != nil {
+		msg.Text = "Failed to update the current page to the current month."
+		return msg, err
+	}
+	msg.Text = fmt.Sprintf(
+		"The current page is updated to <b>%s</b> successfully.",
+		newCurrentPageValue,
+	)
+	e.endConversation(ctx, message.Chat.ID)
+	return msg, nil
+}
+
+func (e *Expensemate) handleGSheetsUpdateCurrentPage(
+	ctx context.Context,
+	message *tgbotapi.Message,
+) (tgbotapi.MessageConfig, error) {
+	newCurrentPageValue := strings.TrimSpace(message.Text)
+	return e.updateCurrentPageValue(ctx, message, newCurrentPageValue)
 }

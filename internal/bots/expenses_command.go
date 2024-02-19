@@ -76,8 +76,8 @@ func (e *Expensemate) handleExpensesCallback(
 	query *tgbotapi.CallbackQuery,
 ) (tgbotapi.MessageConfig, error) {
 	callbackQueryData := query.Data
-	_, subCommand := tgtypes.ParseCallbackData(callbackQueryData)
-	action := expensetypes.Action(subCommand)
+	_, subCommands := tgtypes.ParseCallbackData(callbackQueryData)
+	action := expensetypes.Action(subCommands[0])
 	var msg tgbotapi.MessageConfig
 
 	switch action {
@@ -85,12 +85,16 @@ func (e *Expensemate) handleExpensesCallback(
 		msg, _ = e.handleExpensesAddCommand(ctx, query.Message)
 	case expensetypes.ActionView:
 		msg, _ = e.handleExpensesViewCommand(ctx, query.Message)
+		e.endConversation(ctx, query.Message.Chat.ID)
 	case expensetypes.ActionReport:
 		msg, _ = e.handleExpensesReportCommand(ctx, query.Message)
+		e.endConversation(ctx, query.Message.Chat.ID)
 	case expensetypes.ActionHelp:
 		msg, _ = e.handleExpenseHelpCommand(ctx, query.Message)
+		e.endConversation(ctx, query.Message.Chat.ID)
 	default:
 		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
+		e.endConversation(ctx, query.Message.Chat.ID)
 		msg.Text = "Unfortunately, We have not supported this action yet."
 	}
 
@@ -132,7 +136,11 @@ func (e *Expensemate) handleExpensesAdd(
 	}
 	nextId, err := e.getExpensesNextId(ctx, spreadsheetDocId, currentPage)
 	if err != nil {
-		msg.Text = "Failed to get next id for expenses. Make sure the database is set up correctly."
+		msg.Text = fmt.Sprintf(
+			`
+Failed to get next id for expenses. Make sure the database is set up correctly.
+Configured current page: <b>%s</b>, make sure you created the sheet with this name.`, currentPage,
+		)
 		return msg, nil
 	}
 
@@ -262,6 +270,30 @@ func (e *Expensemate) getCurrentPage(ctx context.Context, spreadsheetDocId strin
 		return "", err
 	}
 	return currentPage, nil
+}
+
+func (e *Expensemate) updateCurrentPage(
+	ctx context.Context,
+	spreadsheetDocId, currentPage string,
+) error {
+	currentPageCell := gsheettypes.BuildCell(
+		gsheettypes.ExpensemateDatabaseSheetName,
+		gsheettypes.ExpensemateDatabaseCurrentPageCell,
+	)
+	if _, err := gsheetclients.GetInstance().Update(
+		ctx,
+		spreadsheetDocId,
+		currentPageCell,
+		&sheets.ValueRange{
+			Values: [][]interface{}{
+				{currentPage},
+			},
+		},
+	); err != nil {
+		slog.Error("Failed to update current page for expenses", err)
+		return err
+	}
+	return nil
 }
 
 func (e *Expensemate) insertNewExpense(

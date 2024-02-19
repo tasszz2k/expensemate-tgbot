@@ -20,11 +20,11 @@ const (
 
 // ParseCallbackData parses the callback data and returns the command and the data.
 // callback data format: [command]:[sub_command_1]:[sub_command_1.n]
-func ParseCallbackData(data string) (command Command, subCommand string) {
+func ParseCallbackData(data string) (command Command, subCommands []string) {
 	commands := strings.Split(data, ":")
 	command = Command(commands[0])
 	if len(commands) > 1 {
-		subCommand = strings.Join(commands[1:], ":")
+		subCommands = commands[1:]
 	}
 	return
 }
