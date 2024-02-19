@@ -1,18 +1,31 @@
 package gsheettypes
 
+import "fmt"
+
+// Expensemate Database Spreadsheet
 const (
-	// User sheet Mapping
 	UserSheetMappingSheetName  = "user_sheet_mappings"
 	UserSheetMappingNextIdCell = "B1"
-	UserSheetMappingTopRow     = 3
+	UserSheetMappingTopRow     = 2
 	UserSheetMappingLeftCol    = "A"
-	UserSheetMappingRightCol   = "F"
+	UserSheetMappingRightCol   = "H"
+)
+
+// My Expensemate Spreadsheet
+const (
+	ExpensemateDatabaseSheetName       = "Database"
+	ExpensemateDatabaseCurrentPageCell = "B2"
+
+	ExpensemateExpensesNextIdCell = "B2"
+	ExpensemateExpensesTopRow     = 3
+	ExpensemateExpensesLeftCol    = "A"
+	ExpensemateExpensesRightCol   = "G"
 )
 
 func BuildCell(sheetName string, cell string) string {
 	return sheetName + "!" + cell
 }
 
-func BuildRange(sheetName string, startCell string, endCell string) string {
-	return sheetName + "!" + startCell + ":" + endCell
+func BuildRange(sheetName string, startCol string, startRow int, endCol string, endRow int) string {
+	return fmt.Sprintf("%s!%s%d:%s%d", sheetName, startCol, startRow, endCol, endRow)
 }

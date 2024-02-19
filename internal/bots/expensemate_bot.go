@@ -8,7 +8,9 @@ import (
 
 	"expensemate-tgbot/pkg/models"
 	"expensemate-tgbot/pkg/types/expensetypes"
+	"expensemate-tgbot/pkg/types/gsheettypes"
 	"expensemate-tgbot/pkg/types/tgtypes"
+	"expensemate-tgbot/pkg/types/types"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -21,7 +23,7 @@ type Expensemate struct {
 	conversationStates map[int64]string
 	csMux              sync.RWMutex
 	// Map to store user spreadsheet mappings
-	spreadsheetMappings map[string]models.UserSheetMapping
+	spreadsheetMappings map[types.Id]models.UserSheetMapping
 	smMux               sync.RWMutex
 }
 
@@ -34,9 +36,18 @@ type BotHandler interface {
 }
 
 type ConversationStateHandler interface {
-	updateConversationState(ctx context.Context, chatID int64, state string)
+	startConversation(ctx context.Context, chatID int64, state string)
 	getConversationState(ctx context.Context, chatID int64) string
-	removeConversationState(ctx context.Context, chatID int64)
+	endConversation(ctx context.Context, chatID int64)
+}
+
+type SpreadsheetMappingHandler interface {
+	loadSpreadsheetMappings(ctx context.Context)
+	getSpreadsheetMappingByUserID(ctx context.Context, username string) (
+		models.UserSheetMapping,
+		error,
+	)
+	upsertSpreadsheetMapping(ctx context.Context, mapping models.UserSheetMapping) error
 }
 
 func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error {
@@ -67,10 +78,10 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 			switch commandType {
 			case tgtypes.CommandStart:
 				msg, err = e.handleStartCommand(ctx, incomingMessage)
-				e.removeConversationState(ctx, chatID)
+				e.endConversation(ctx, chatID)
 			case tgtypes.CommandHelp:
 				msg, err = e.handleHelpCommand(ctx, incomingMessage)
-				e.removeConversationState(ctx, chatID)
+				e.endConversation(ctx, chatID)
 			case tgtypes.CommandExpenses:
 				msg, err = e.handleExpensesCommand(ctx, incomingMessage)
 			case tgtypes.CommandExpenseAdd:
@@ -81,12 +92,12 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 				msg, err = e.handleGSheetsCommand(ctx, incomingMessage)
 			case tgtypes.CommandSettings:
 				msg, err = e.handleSettingsCommand(ctx, incomingMessage)
-				e.removeConversationState(ctx, chatID)
+				e.endConversation(ctx, chatID)
 			case tgtypes.CommandFeedback:
 				msg, err = e.handleFeedbackCommand(ctx, incomingMessage)
 			default:
 				msg, err = e.handleDefaultCommand(ctx, incomingMessage)
-				e.removeConversationState(ctx, chatID)
+				e.endConversation(ctx, chatID)
 			}
 		} else if state != "" {
 			// if the user is in a conversation
@@ -94,10 +105,11 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 			switch state {
 			case fmt.Sprintf("%s:%s", tgtypes.CommandExpenses, expensetypes.ActionAdd):
 				msg, err = e.handleExpensesAdd(ctx, incomingMessage)
-			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, ""):
-			// todo: implement this
+			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionConfigure):
+				msg, err = e.handleGSheetsConfigure(ctx, incomingMessage)
 			default:
 				slog.Error("Unsupported conversation state")
+				e.endConversation(ctx, chatID)
 				return fmt.Errorf("unsupported conversation state")
 			}
 		}
@@ -117,7 +129,7 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 		case tgtypes.CommandExpenses:
 			msg, err = e.handleExpensesCallback(ctx, callbackQuery)
 		case tgtypes.CommandGSheets:
-			// todo: handle GSheets callback
+			msg, err = e.handleGSheetsCallback(ctx, callbackQuery)
 		default:
 			slog.Error("Unsupported callback command")
 			return fmt.Errorf("unsupported callback command")
@@ -134,6 +146,9 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 
 	// format the message
 	msg.ParseMode = parseModeHTML
+	if incomingMessage != nil && incomingMessage.MessageID != 0 {
+		msg.ReplyToMessageID = incomingMessage.MessageID
+	}
 	// Respond the message to the user.
 	if _, err := e.botAPI.Send(msg); err != nil {
 		slog.Error("Error while sending message: %v", err)
@@ -147,7 +162,7 @@ func NewExpensemate(config ExpensemateConfig) BotHandler {
 	bot := &Expensemate{
 		botAPI:              config.BotAPI,
 		conversationStates:  make(map[int64]string),
-		spreadsheetMappings: make(map[string]models.UserSheetMapping),
+		spreadsheetMappings: make(map[types.Id]models.UserSheetMapping),
 	}
 
 	// todo: change to scheduled job

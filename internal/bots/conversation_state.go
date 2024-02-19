@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-func (e *Expensemate) updateConversationState(
+func (e *Expensemate) startConversation(
 	_ context.Context,
 	chatID int64,
 	state string,
@@ -27,7 +27,7 @@ func (e *Expensemate) getConversationState(
 	return ""
 }
 
-func (e *Expensemate) removeConversationState(
+func (e *Expensemate) endConversation(
 	_ context.Context,
 	chatID int64,
 ) {
