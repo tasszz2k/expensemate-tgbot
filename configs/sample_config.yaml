@@ -7,7 +7,7 @@ telegram_bot:
 
 google_apis:
   credentials:
-    client_email: housematee-gsheets@housematee.iam.gserviceaccount.com
+    client_email: your_service_account@your.iam.gserviceaccount.com
     private_key: "-----BEGIN PRIVATE KEY-----\nkeyyyyyyyyyyyyyyyyyyyyyyyyyyyy==\n-----END PRIVATE KEY-----\n"
     token_uri: https://oauth2.googleapis.com/token
 
