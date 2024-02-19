@@ -41,7 +41,7 @@ func (e *Expensemate) handleSettingsCommand(
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
-	msg.Text = "You can configure the bot settings."
+	msg.Text = "Unfortunately, We have not supported this command yet."
 	return msg, nil
 }
 
