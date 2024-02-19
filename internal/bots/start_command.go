@@ -2,6 +2,7 @@ package bots
 
 import (
 	"context"
+	"fmt"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -11,8 +12,11 @@ func (e *Expensemate) handleStartCommand(
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
-	msg.Text = "Hello! I am Expensemate bot. I can help you manage your expenses.\n" +
-		"Please use /help to see the list of supported commands."
+	fullName := incomingMessage.From.FirstName + " " + incomingMessage.From.LastName
+	msg.Text = fmt.Sprintf(
+		"Hello %s! I am Expensemate bot. I can help you manage your expenses.\n"+
+			"Please use /help to see the list of supported commands.", fullName,
+	)
 	return msg, nil
 }
 
