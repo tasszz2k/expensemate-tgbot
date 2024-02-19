@@ -1,0 +1,16 @@
+title: expensemate-tgbot
+production: false
+
+telegram_bot:
+  api_token: 1234567890:AAAAAAAAAAAAAAA-zzzzzzzzzzzzzzzzz
+  debug: false
+
+google_apis:
+  credentials:
+    client_email: housematee-gsheets@housematee.iam.gserviceaccount.com
+    private_key: "-----BEGIN PRIVATE KEY-----\nkeyyyyyyyyyyyyyyyyyyyyyyyyyyyy==\n-----END PRIVATE KEY-----\n"
+    token_uri: https://oauth2.googleapis.com/token
+
+google_sheets:
+  database_spreadsheet_id: xxxxxxxxxxxT1WRIJYRQrXP33WOIfICiXBcgxxxxxxxxx
+
