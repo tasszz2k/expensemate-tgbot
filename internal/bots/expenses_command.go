@@ -152,6 +152,14 @@ Configured current page: <b>%s</b>, make sure you created the sheet with this na
 
 	// return the saved expense
 	msg.Text = expense.String()
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL(
+				"View detail in Google Sheets",
+				mapping.SpreadSheetsURL,
+			),
+		),
+	)
 
 	e.endConversation(ctx, message.Chat.ID)
 	return msg, nil
@@ -401,6 +409,14 @@ func (e *Expensemate) handleExpensesViewCommand(
 	for _, expense := range expenses {
 		msg.Text += expense.String()
 	}
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL(
+				"View detail in Google Sheets",
+				mapping.SpreadSheetsURL,
+			),
+		),
+	)
 	return msg, nil
 }
 
@@ -502,5 +518,13 @@ func (e *Expensemate) handleExpensesReportCommand(
 			msg.Text += fmt.Sprintf("<b>%s</b>: %s | %s \n", row[0], row[1], row[2])
 		}
 	}
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL(
+				"View detail in Google Sheets",
+				mapping.SpreadSheetsURL,
+			),
+		),
+	)
 	return msg, nil
 }
