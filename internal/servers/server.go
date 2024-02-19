@@ -43,20 +43,20 @@ func NewServer(config ServerConfig) Server {
 	}
 }
 
-func (b server) Start() error {
+func (s server) Start() error {
 	// run bot
-	b.run()
+	s.run()
 	return nil
 }
 
-func (b server) run() {
+func (s server) run() {
 	ctx := context.Background()
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-	updates := b.botAPI.GetUpdatesChan(u)
+	updates := s.botAPI.GetUpdatesChan(u)
 
 	for update := range updates {
-		err := b.bot.Handle(ctx, update)
+		err := s.bot.Handle(ctx, update)
 
 		if err != nil {
 			slog.Error("error handling update: ", err)

@@ -9,8 +9,8 @@ func (e *Expensemate) updateConversationState(
 	chatID int64,
 	state string,
 ) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.csMux.Lock()
+	defer e.csMux.Unlock()
 	e.conversationStates[chatID] = state
 	return
 }
@@ -19,8 +19,8 @@ func (e *Expensemate) getConversationState(
 	_ context.Context,
 	chatID int64,
 ) string {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	e.csMux.RLock()
+	defer e.csMux.RUnlock()
 	if state, exists := e.conversationStates[chatID]; exists {
 		return state
 	}
@@ -31,8 +31,8 @@ func (e *Expensemate) removeConversationState(
 	_ context.Context,
 	chatID int64,
 ) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
+	e.csMux.Lock()
+	defer e.csMux.Unlock()
 	delete(e.conversationStates, chatID)
 	return
 }

@@ -29,6 +29,10 @@ func ParseAPILocal(input string) (time.Time, error) {
 	return time.ParseInLocation(APIFormat, input, LocLocal)
 }
 
+func ParseDateOnly(input string) (time.Time, error) {
+	return time.Parse(DateOnlyFormat, input)
+}
+
 func GetCurrentDay() time.Time {
 	return time.Now().Truncate(24 * time.Hour)
 }

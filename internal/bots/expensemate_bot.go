@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"sync"
 
+	"expensemate-tgbot/pkg/models"
 	"expensemate-tgbot/pkg/types/expensetypes"
 	"expensemate-tgbot/pkg/types/tgtypes"
 
@@ -18,7 +19,10 @@ type Expensemate struct {
 	botAPI *tgbotapi.BotAPI
 	// Map to store conversation states for each user
 	conversationStates map[int64]string
-	mu                 sync.RWMutex
+	csMux              sync.RWMutex
+	// Map to store user spreadsheet mappings
+	spreadsheetMappings map[string]models.UserSheetMapping
+	smMux               sync.RWMutex
 }
 
 type ExpensemateConfig struct {
@@ -140,8 +144,13 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 }
 
 func NewExpensemate(config ExpensemateConfig) BotHandler {
-	return &Expensemate{
-		botAPI:             config.BotAPI,
-		conversationStates: make(map[int64]string),
+	bot := &Expensemate{
+		botAPI:              config.BotAPI,
+		conversationStates:  make(map[int64]string),
+		spreadsheetMappings: make(map[string]models.UserSheetMapping),
 	}
+
+	// todo: change to scheduled job
+	bot.loadSpreadsheetMappings(context.Background())
+	return bot
 }
