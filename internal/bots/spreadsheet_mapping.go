@@ -29,7 +29,7 @@ func (e *Expensemate) loadSpreadsheetMappings(ctx context.Context) {
 		lastRow := gsheettypes.UserSheetMappingTopRow + (nextId - 1) // load to the last id = next id - 1
 
 		// build the range of cells to load
-		readRange := gsheettypes.BuildRange(
+		readRange := gsheettypes.BuildRangeFromCells(
 			gsheettypes.UserSheetMappingSheetName,
 			gsheettypes.UserSheetMappingLeftCol,
 			gsheettypes.UserSheetMappingTopRow+1, // load from id=1
@@ -125,7 +125,7 @@ func (e *Expensemate) upsertSpreadsheetMapping(
 	e.spreadsheetMappings[mapping.UserID] = mapping
 
 	row := int(mapping.ID + gsheettypes.UserSheetMappingTopRow)
-	writeRange := gsheettypes.BuildRange(
+	writeRange := gsheettypes.BuildRangeFromCells(
 		gsheettypes.UserSheetMappingSheetName,
 		gsheettypes.UserSheetMappingLeftCol, row,
 		gsheettypes.UserSheetMappingRightCol, row,

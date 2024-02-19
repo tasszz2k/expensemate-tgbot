@@ -12,6 +12,7 @@ import (
 	"expensemate-tgbot/pkg/types/gsheettypes"
 	"expensemate-tgbot/pkg/types/tgtypes"
 	"expensemate-tgbot/pkg/types/types"
+	"expensemate-tgbot/pkg/utils/currencyutils"
 	"expensemate-tgbot/pkg/utils/timeutils"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -83,11 +84,9 @@ func (e *Expensemate) handleExpensesCallback(
 	case expensetypes.ActionAdd:
 		msg, _ = e.handleExpensesAddCommand(ctx, query.Message)
 	case expensetypes.ActionView:
-		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
-		msg.Text = "Here are your 5 latest expenses:"
+		msg, _ = e.handleExpensesViewCommand(ctx, query.Message)
 	case expensetypes.ActionReport:
-		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
-		msg.Text = "Here is your expense report:"
+		msg, _ = e.handleExpensesReportCommand(ctx, query.Message)
 	case expensetypes.ActionHelp:
 		msg, _ = e.handleExpenseHelpCommand(ctx, query.Message)
 	default:
@@ -271,7 +270,7 @@ func (e *Expensemate) insertNewExpense(
 	expense models.Expense,
 ) error {
 	row := int(gsheettypes.ExpensemateExpensesTopRow + expense.Id)
-	writeRange := gsheettypes.BuildRange(
+	writeRange := gsheettypes.BuildRangeFromCells(
 		currentPage,
 		gsheettypes.ExpensemateExpensesLeftCol, row,
 		gsheettypes.ExpensemateExpensesRightCol, row,
@@ -334,4 +333,142 @@ func (e *Expensemate) updateExpensesNextId(
 		return err
 	}
 	return nil
+}
+
+func (e *Expensemate) handleExpensesViewCommand(
+	ctx context.Context,
+	message *tgbotapi.Message,
+) (tgbotapi.MessageConfig, error) {
+	msg := tgbotapi.NewMessage(message.Chat.ID, "")
+	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
+	if err != nil {
+		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
+			" Click the button below to configure it."
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
+				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+			),
+		)
+		return msg, nil
+	}
+	spreadsheetDocId := mapping.SpreadsheetDocId()
+	currentPage, err := e.getCurrentPage(ctx, spreadsheetDocId)
+	if err != nil {
+		msg.Text = "Failed to get current page for expenses. Make sure the database is set up correctly."
+		return msg, nil
+	}
+
+	expenses, err := e.get5MostRecentExpenses(ctx, spreadsheetDocId, currentPage)
+	if err != nil {
+		msg.Text = "Failed to get expenses from the database."
+		return msg, nil
+	}
+
+	msg.Text = "Here are your 5 most recent expenses:\n-----\n"
+	for _, expense := range expenses {
+		msg.Text += expense.String()
+	}
+	return msg, nil
+}
+
+func (e *Expensemate) get5MostRecentExpenses(
+	ctx context.Context, spreadsheetDocId,
+	currentPage string,
+) ([]models.Expense, error) {
+	expensesNextId, err := e.getExpensesNextId(ctx, spreadsheetDocId, currentPage)
+	if err != nil {
+		return nil, err
+	}
+
+	lastExpenseId := int(expensesNextId) - 1
+	if lastExpenseId < 1 {
+		return []models.Expense{}, nil
+	}
+	topRow := max(
+		gsheettypes.ExpensemateExpensesTopRow+lastExpenseId-5,
+		gsheettypes.ExpensemateExpensesTopRow+1,
+	)
+
+	readRange := gsheettypes.BuildRangeFromCells(
+		currentPage,
+		gsheettypes.ExpensemateExpensesLeftCol,
+		topRow,
+		gsheettypes.ExpensemateExpensesRightCol,
+		gsheettypes.ExpensemateExpensesTopRow+lastExpenseId,
+	)
+	values, err := gsheetclients.GetInstance().Get(ctx, spreadsheetDocId, readRange)
+	if err != nil {
+		return nil, err
+	}
+
+	expenses := make([]models.Expense, 0, len(values.Values))
+	for _, row := range values.Values {
+		expense, err := models.ParseRowToExpense(row)
+		if err != nil {
+			continue
+		}
+		expenses = append(expenses, expense)
+	}
+	return expenses, nil
+}
+
+func (e *Expensemate) handleExpensesReportCommand(
+	ctx context.Context,
+	message *tgbotapi.Message,
+) (tgbotapi.MessageConfig, error) {
+	msg := tgbotapi.NewMessage(message.Chat.ID, "")
+	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
+	if err != nil {
+		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
+			" Click the button below to configure it."
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
+				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+			),
+		)
+		return msg, nil
+	}
+	spreadsheetDocId := mapping.SpreadsheetDocId()
+	currentPage, err := e.getCurrentPage(ctx, spreadsheetDocId)
+	if err != nil {
+		msg.Text = "Failed to get current page for expenses. Make sure the database is set up correctly."
+		return msg, nil
+	}
+
+	// get report
+	reportReadRange := gsheettypes.BuildRange(
+		currentPage,
+		gsheettypes.ExpensemateExpensesReportRange,
+	)
+	reportValues, err := gsheetclients.GetInstance().Get(ctx, spreadsheetDocId, reportReadRange)
+	if err != nil {
+		msg.Text = "Failed to get report from the database."
+		return msg, nil
+	}
+
+	categoryReadRange := gsheettypes.BuildRange(
+		currentPage,
+		gsheettypes.ExpensemateExpensesCategoryRange,
+	)
+	categoryValues, err := gsheetclients.GetInstance().Get(ctx, spreadsheetDocId, categoryReadRange)
+	if err != nil {
+		msg.Text = "Failed to get category from the database."
+		return msg, nil
+	}
+
+	// format report and category
+	msg.Text = "Here is your expense report, categorized by groups:\n-----\n"
+	for _, row := range reportValues.Values {
+		msg.Text += fmt.Sprintf("<b>%s</b>: %s\n", row[0], row[1])
+	}
+	msg.Text += "\nHere are your expense report, categorized by categories:\n-----\n"
+	for _, row := range categoryValues.Values {
+		totalAmount, _ := currencyutils.ReverseFormatVND(cast.ToString(row[1]))
+		if totalAmount > 0 {
+			msg.Text += fmt.Sprintf("<b>%s</b>: %s | %s \n", row[0], row[1], row[2])
+		}
+	}
+	return msg, nil
 }

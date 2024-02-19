@@ -24,6 +24,26 @@ type Expense struct {
 	Note     string                `json:"note"`
 }
 
+func ParseRowToExpense(row []any) (Expense, error) {
+	row = append(row, make([]any, 7-len(row))...)
+	amount, err := currencyutils.ReverseFormatVND(cast.ToString(row[2]))
+	if err != nil {
+		return Expense{}, fmt.Errorf("invalid amount: %s is not a valid number", row[2])
+	}
+
+	date, _ := timeutils.ParseDateOnly(cast.ToString(row[5]))
+
+	return Expense{
+		Id:       types.Id(cast.ToInt64(row[0])),
+		Name:     cast.ToString(row[1]),
+		Amount:   amount,
+		Group:    expensetypes.Group(cast.ToString(row[3])),
+		Category: expensetypes.Category(cast.ToString(row[4])),
+		Date:     date,
+		Note:     cast.ToString(row[6]),
+	}, nil
+}
+
 func ParseTextToExpense(text string) (Expense, error) {
 	rows := strings.Split(text, "\n")
 	if len(rows) < 2 {

@@ -32,6 +32,9 @@ var groupAliases = map[string]Group{
 	"o":     GroupOther,
 }
 
+func (g Group) String() string {
+	return string(g)
+}
 func GetGroupByAlias(name string) (Group, bool) {
 	name = strings.ToLower(name)
 	if group, exists := groupAliases[name]; exists {
@@ -58,71 +61,88 @@ const (
 	CategoryOther          Category = "Other / Khác"
 )
 
+func (c Category) String() string {
+	return string(c)
+}
+
 var categoryAliases = map[string]Category{
+	strings.ToLower(CategoryUnclassified.String()): CategoryUnclassified,
 	"unclassified":   CategoryUnclassified,
 	"chua phan loai": CategoryUnclassified,
 	"cpl":            CategoryUnclassified,
 	"uc":             CategoryUnclassified,
 
-	"food":    CategoryFood,
-	"an uong": CategoryFood,
-	"au":      CategoryFood,
-	"f":       CategoryFood,
+	strings.ToLower(CategoryFood.String()): CategoryFood,
+	"food":                                 CategoryFood,
+	"an uong":                              CategoryFood,
+	"au":                                   CategoryFood,
+	"f":                                    CategoryFood,
 
+	strings.ToLower(CategoryHousing.String()): CategoryHousing,
 	"housing": CategoryHousing,
 	"nha o":   CategoryHousing,
 	"no":      CategoryHousing,
 	"h":       CategoryHousing,
 
+	strings.ToLower(CategoryTransportation.String()): CategoryTransportation,
 	"transportation": CategoryTransportation,
 	"di lai":         CategoryTransportation,
 	"dl":             CategoryTransportation,
 	"t":              CategoryTransportation,
 
+	strings.ToLower(CategoryUtilities.String()): CategoryUtilities,
 	"utilities": CategoryUtilities,
 	"tien ich":  CategoryUtilities,
 	"ti":        CategoryUtilities,
 	"u":         CategoryUtilities,
 
+	strings.ToLower(CategoryHealthCare.String()): CategoryHealthCare,
 	"healthcare": CategoryHealthCare,
 	"suc khoe":   CategoryHealthCare,
 	"sk":         CategoryHealthCare,
 	"hc":         CategoryHealthCare,
 
+	strings.ToLower(CategoryEntertainment.String()): CategoryEntertainment,
 	"entertainment": CategoryEntertainment,
 	"giai tri":      CategoryEntertainment,
 	"gt":            CategoryEntertainment,
 	"en":            CategoryEntertainment,
 
+	strings.ToLower(CategoryEducation.String()): CategoryEducation,
 	"education": CategoryEducation,
 	"giao duc":  CategoryEducation,
 	"gd":        CategoryEducation,
 	"ed":        CategoryEducation,
 
+	strings.ToLower(CategoryClothing.String()): CategoryClothing,
 	"clothing": CategoryClothing,
 	"quan ao":  CategoryClothing,
 	"qa":       CategoryClothing,
 	"c":        CategoryClothing,
 
+	strings.ToLower(CategoryPersonalCare.String()): CategoryPersonalCare,
 	"personal care":    CategoryPersonalCare,
 	"cham soc ca nhan": CategoryPersonalCare,
 	"cscn":             CategoryPersonalCare,
 	"pc":               CategoryPersonalCare,
 
+	strings.ToLower(CategoryMiscellaneous.String()): CategoryMiscellaneous,
 	"miscellaneous": CategoryMiscellaneous,
 	"do linh tinh":  CategoryMiscellaneous,
 	"dlt":           CategoryMiscellaneous,
 	"lt":            CategoryMiscellaneous,
 	"m":             CategoryMiscellaneous,
 
-	"travel":  CategoryTravel,
-	"du lich": CategoryTravel,
-	"tv":      CategoryTravel,
+	strings.ToLower(CategoryTravel.String()): CategoryTravel,
+	"travel":                                 CategoryTravel,
+	"du lich":                                CategoryTravel,
+	"tv":                                     CategoryTravel,
 
-	"other": CategoryOther,
-	"khac":  CategoryOther,
-	"k":     CategoryOther,
-	"o":     CategoryOther,
+	strings.ToLower(CategoryOther.String()): CategoryOther,
+	"other":                                 CategoryOther,
+	"khac":                                  CategoryOther,
+	"k":                                     CategoryOther,
+	"o":                                     CategoryOther,
 }
 
 func GetCategoryByAlias(name string) (Category, bool) {

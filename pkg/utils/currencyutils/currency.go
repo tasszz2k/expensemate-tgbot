@@ -43,3 +43,13 @@ func FormatVND(amount types.Unsigned) string {
 
 	return result + " ₫"
 }
+
+func ReverseFormatVND(amountStr string) (types.Unsigned, error) {
+	amountStr = strings.ReplaceAll(amountStr, " ₫", "")
+	amountStr = strings.ReplaceAll(amountStr, ",", "")
+	amount, err := strconv.ParseUint(amountStr, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return types.Unsigned(amount), nil
+}
