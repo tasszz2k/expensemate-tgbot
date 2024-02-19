@@ -74,7 +74,9 @@ func ParseTextToExpense(text string) (Expense, error) {
 	categoryTextInput := strings.TrimSpace(rows[3])
 	var category expensetypes.Category
 	if categoryTextInput == "" {
-		category = expensetypes.CategoryUnclassified
+		if group != expensetypes.GroupIncome {
+			category = expensetypes.CategoryUnclassified
+		}
 	} else {
 		if category, ok = expensetypes.GetCategoryByAlias(categoryTextInput); !ok {
 			return Expense{}, fmt.Errorf(
