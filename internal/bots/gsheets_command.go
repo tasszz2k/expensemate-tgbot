@@ -75,10 +75,11 @@ func (e *Expensemate) handleGSheetsCallback(
 		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
 		msg.Text = `
 You can configure a Google Sheets to store your expenses.
-+ Step 1: Use the /gsheets command to configure a Google Sheets.
-+ Step 2: Click the "Configure" button to provide the URL of your Google Sheets.
-+ Step 3: Copy the URL of your Google Sheets and paste it in the chat.
-+ Step 4: Share <b>Editing access</b> to the Google Sheets with the bot 
++ Step 1: Clone this template to your Google Drive: https://docs.google.com/spreadsheets/d/16jOEcyvHiHzW1GdRBvhHEadECojq0g3tzBT3a2MoLnI/edit?usp=sharing
++ Step 2: Use the /gsheets command to configure a Google Sheets.
++ Step 3: Click the "Configure" button to provide the URL of your Google Sheets.
++ Step 4: Copy the URL of your Google Sheets and paste it in the chat.
++ Step 5: Share <b>Editing access</b> to the Google Sheets with the bot 
 <b>housematee-gsheets@housematee.iam.gserviceaccount.com</b> (required).
 <i> This is service account only, no one can access your Google Sheets except you.</i>
 `
