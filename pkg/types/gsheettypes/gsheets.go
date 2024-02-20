@@ -1,6 +1,9 @@
 package gsheettypes
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+)
 
 // Expensemate Database Spreadsheet
 const (
@@ -28,6 +31,9 @@ const (
 	ExpensemateExpensesCategoryRange = "L3:N15"
 )
 
+// Regular expression pattern for "YYYY_MM" format
+const pattern = `^\d{4}_\d{2}$`
+
 func BuildCell(sheetName string, cell string) string {
 	return sheetName + "!" + cell
 }
@@ -44,4 +50,12 @@ func BuildRangeFromCells(
 
 func BuildRange(sheetName string, rangeString string) string {
 	return sheetName + "!" + rangeString
+}
+
+func IsFormatValidSheetName(input string) bool {
+	// Compile the regular expression pattern
+	regex := regexp.MustCompile(pattern)
+
+	// Check if the input string matches the pattern
+	return regex.MatchString(input)
 }

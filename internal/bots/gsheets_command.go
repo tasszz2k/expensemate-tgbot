@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"expensemate-tgbot/pkg/clients/gsheetclients"
 	"expensemate-tgbot/pkg/models"
 	"expensemate-tgbot/pkg/types/gsheettypes"
 	"expensemate-tgbot/pkg/types/tgtypes"
@@ -173,14 +174,12 @@ func (e *Expensemate) handleGSheetsUpdateCurrentPageCallback(
 		timeutils.GetCurrentDay().Year(),
 		timeutils.GetCurrentDay().Month(),
 	)
-	var err error
 	switch {
-	case len(subCommands) == 1:
+	case len(subCommands) == 1: // gsheets:update_current_page
 		msg.Text = fmt.Sprintf(
 			`
-Please input the sheet name following the format <b>year_month</b> (e.g. 2024_01).
+Please select the sheet you want to update the current page <i>(Make sure you cloned the template from the bot.)</i> 
 Or you can click the button below to update the current page to the current month => <b>%[1]s</b>.
-Make sure you cloned the template from the bot.
 `, currentMonth,
 		)
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
@@ -189,26 +188,65 @@ Make sure you cloned the template from the bot.
 					fmt.Sprintf(
 						"Update current page to %s",
 						currentMonth,
-					), "gsheets:update_current_page:confirm",
+					), fmt.Sprintf("gsheets:update_current_page:%s", currentMonth),
+				),
+			),
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Other", "gsheets:update_current_page:other"),
+			),
+		)
+	case len(subCommands) >= 2 && subCommands[1] == "other":
+		msg, _ = e.showSheetList(ctx, query.Message)
+	case len(subCommands) >= 2 && subCommands[1] != "":
+		// update the current page to the selected month
+		// the user has confirmed to update the current page to the selected month
+		msg, _ = e.updateCurrentPageValue(ctx, query.Message, subCommands[1])
+	}
+	return msg, nil
+}
+
+func (e *Expensemate) showSheetList(
+	ctx context.Context,
+	message *tgbotapi.Message,
+) (tgbotapi.MessageConfig, error) {
+	msg := tgbotapi.NewMessage(message.Chat.ID, "")
+	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
+	if err != nil {
+		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
+			" Click the button below to configure it."
+		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
+				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+			),
+		)
+		return msg, nil
+	}
+	spreadsheetDocId := mapping.SpreadsheetDocId()
+	sheets, err := gsheetclients.GetInstance().GetListOfSheets(ctx, spreadsheetDocId)
+	if err != nil {
+		msg.Text = "Failed to get the list of sheets."
+		return msg, err
+	}
+	sheetsKeyboard := tgbotapi.NewInlineKeyboardMarkup()
+	for _, sheet := range sheets {
+		// filter sheets that have name format "YYYY_MM"
+		if !gsheettypes.IsFormatValidSheetName(sheet.Properties.Title) {
+			continue
+		}
+
+		sheetsKeyboard.InlineKeyboard = append(
+			sheetsKeyboard.InlineKeyboard,
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(
+					sheet.Properties.Title,
+					fmt.Sprintf("gsheets:update_current_page:%s", sheet.Properties.Title),
 				),
 			),
 		)
-		e.startConversation(
-			ctx,
-			query.Message.Chat.ID,
-			tgtypes.BuildCallbackData(
-				tgtypes.CommandGSheets,
-				gsheettypes.ActionUpdateCurrentPage.String(),
-			),
-		)
-	case len(subCommands) >= 2 && subCommands[1] == "confirm":
-		// update the current page to the current month
-		// the user has confirmed to update the current page to the current month
-		msg, err = e.updateCurrentPageValue(ctx, query.Message, currentMonth)
-		if err != nil {
-			return msg, nil
-		}
 	}
+	msg.ReplyMarkup = sheetsKeyboard
+	msg.Text = "Please select the sheet you want to update the current page."
 	return msg, nil
 }
 

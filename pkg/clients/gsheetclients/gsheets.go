@@ -22,6 +22,7 @@ type GSheeter interface {
 		vr *sheets.ValueRange,
 	) (*sheets.UpdateValuesResponse, error)
 	GetValue(ctx context.Context, spreadsheetId string, readRange string) (string, error)
+	GetListOfSheets(ctx context.Context, spreadsheetId string) ([]*sheets.Sheet, error)
 }
 
 type GSheets struct {
@@ -99,4 +100,15 @@ func (g *GSheets) GetValue(ctx context.Context, spreadsheetId string, readRange 
 		return "", nil
 	}
 	return resp.Values[0][0].(string), nil
+}
+
+func (g *GSheets) GetListOfSheets(ctx context.Context, spreadsheetId string) (
+	[]*sheets.Sheet,
+	error,
+) {
+	resp, err := g.Svc.Spreadsheets.Get(spreadsheetId).Context(ctx).Do()
+	if err != nil {
+		return nil, err
+	}
+	return resp.Sheets, nil
 }
