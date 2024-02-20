@@ -1,10 +1,12 @@
 package configs
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -63,9 +65,9 @@ func Load() {
 
 	switch configReaderMode {
 	case "secret":
-		//if err := loadConfigFromSecret(); err != nil {
-		//	panic(err)
-		//}
+		if err := loadConfigFromSecret(); err != nil {
+			panic(err)
+		}
 	default: //case "file"
 		var configPath string
 		if configPath = os.Getenv("CONFIG_PATH"); len(configPath) == 0 {
@@ -76,6 +78,28 @@ func Load() {
 			panic(err)
 		}
 	}
+}
+
+// loadConfigFromSecret decodes the base64 encoded YAML content from the environment variable ENCODED_CONFIG
+// to support secret-based configuration for "free deployment" environments
+func loadConfigFromSecret() error {
+	base64EncodedConfig := os.Getenv("ENCODED_CONFIG")
+	if base64EncodedConfig == "" {
+		log.Fatal("ENCODED_CONFIG is empty")
+	}
+
+	decodedConfig, err := base64.StdEncoding.DecodeString(base64EncodedConfig)
+	if err != nil {
+		return err
+	}
+
+	// Now, unmarshal the decoded YAML content directly into the config struct
+	err = yaml.Unmarshal(decodedConfig, &appCfg)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func loadConfigFromFile(path string) (AppConfig, error) {
