@@ -16,8 +16,8 @@ const (
 
 // My Expensemate Spreadsheet > Expenses
 const (
-	ExpensemateDatabaseSheetName       = "Database"
-	ExpensemateDatabaseCurrentPageCell = "B2"
+	ExpensemateDatabaseSheetName      = "Database"
+	ExpensemateDatabaseActivePageCell = "B2"
 
 	ExpensemateExpensesNextIdCell = "B2"
 	ExpensemateExpensesTopRow     = 3

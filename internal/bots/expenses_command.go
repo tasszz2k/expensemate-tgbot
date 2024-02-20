@@ -130,23 +130,23 @@ func (e *Expensemate) handleExpensesAdd(
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
 
-	currentPage, err := e.getCurrentPage(ctx, spreadsheetDocId)
+	activePage, err := e.getActivePage(ctx, spreadsheetDocId)
 	if err != nil {
-		msg.Text = "Failed to get current page for expenses. Make sure the database is set up correctly."
+		msg.Text = "Failed to get active page for expenses. Make sure the database is set up correctly."
 		return msg, nil
 	}
-	nextId, err := e.getExpensesNextId(ctx, spreadsheetDocId, currentPage)
+	nextId, err := e.getExpensesNextId(ctx, spreadsheetDocId, activePage)
 	if err != nil {
 		msg.Text = fmt.Sprintf(
 			`
 Failed to get next id for expenses. Make sure the database is set up correctly.
-Configured current page: <b>%s</b>, make sure you created the sheet with this name.`, currentPage,
+Configured active page: <b>%s</b>, make sure you created the sheet with this name.`, activePage,
 		)
 		return msg, nil
 	}
 
 	expense.Id = types.Id(nextId)
-	if err = e.insertNewExpense(ctx, spreadsheetDocId, currentPage, expense); err != nil {
+	if err = e.insertNewExpense(ctx, spreadsheetDocId, activePage, expense); err != nil {
 		msg.Text = "Failed to save the expense to the database."
 		return msg, nil
 	}
@@ -245,10 +245,10 @@ Here are the supported aliases for expense groups and categories:
 
 func (e *Expensemate) getExpensesNextId(
 	ctx context.Context, spreadsheetDocId,
-	currentPage string,
+	activePage string,
 ) (int, error) {
 	nextIdCell := gsheettypes.BuildCell(
-		currentPage,
+		activePage,
 		gsheettypes.ExpensemateExpensesNextIdCell,
 	)
 	nextId, err := gsheetclients.GetInstance().GetValue(
@@ -258,7 +258,7 @@ func (e *Expensemate) getExpensesNextId(
 		slog.Error(
 			fmt.Sprintf(
 				"Failed to get next id for expenses in page %s: %s",
-				spreadsheetDocId, currentPage,
+				spreadsheetDocId, activePage,
 			), err,
 		)
 		return 0, err
@@ -266,40 +266,40 @@ func (e *Expensemate) getExpensesNextId(
 	return cast.ToInt(nextId), nil
 }
 
-func (e *Expensemate) getCurrentPage(ctx context.Context, spreadsheetDocId string) (string, error) {
-	currentPageCell := gsheettypes.BuildCell(
+func (e *Expensemate) getActivePage(ctx context.Context, spreadsheetDocId string) (string, error) {
+	activePageCell := gsheettypes.BuildCell(
 		gsheettypes.ExpensemateDatabaseSheetName,
-		gsheettypes.ExpensemateDatabaseCurrentPageCell,
+		gsheettypes.ExpensemateDatabaseActivePageCell,
 	)
-	currentPage, err := gsheetclients.GetInstance().GetValue(
-		ctx, spreadsheetDocId, currentPageCell,
+	activePage, err := gsheetclients.GetInstance().GetValue(
+		ctx, spreadsheetDocId, activePageCell,
 	)
 	if err != nil {
-		slog.Error("Failed to load Expensemate database, current page cell")
+		slog.Error("Failed to load Expensemate database, active page cell")
 		return "", err
 	}
-	return currentPage, nil
+	return activePage, nil
 }
 
-func (e *Expensemate) updateCurrentPage(
+func (e *Expensemate) updateActivePage(
 	ctx context.Context,
-	spreadsheetDocId, currentPage string,
+	spreadsheetDocId, activePage string,
 ) error {
-	currentPageCell := gsheettypes.BuildCell(
+	activePageCell := gsheettypes.BuildCell(
 		gsheettypes.ExpensemateDatabaseSheetName,
-		gsheettypes.ExpensemateDatabaseCurrentPageCell,
+		gsheettypes.ExpensemateDatabaseActivePageCell,
 	)
 	if _, err := gsheetclients.GetInstance().Update(
 		ctx,
 		spreadsheetDocId,
-		currentPageCell,
+		activePageCell,
 		&sheets.ValueRange{
 			Values: [][]interface{}{
-				{currentPage},
+				{activePage},
 			},
 		},
 	); err != nil {
-		slog.Error("Failed to update current page for expenses", err)
+		slog.Error("Failed to update active page for expenses", err)
 		return err
 	}
 	return nil
@@ -307,12 +307,12 @@ func (e *Expensemate) updateCurrentPage(
 
 func (e *Expensemate) insertNewExpense(
 	ctx context.Context,
-	spreadsheetDocId, currentPage string,
+	spreadsheetDocId, activePage string,
 	expense models.Expense,
 ) error {
 	row := int(gsheettypes.ExpensemateExpensesTopRow + expense.Id)
 	writeRange := gsheettypes.BuildRangeFromCells(
-		currentPage,
+		activePage,
 		gsheettypes.ExpensemateExpensesLeftCol, row,
 		gsheettypes.ExpensemateExpensesRightCol, row,
 	)
@@ -344,7 +344,7 @@ func (e *Expensemate) insertNewExpense(
 	// update next id
 	nextId := int(expense.Id) + 1
 	if err := e.updateExpensesNextId(
-		ctx, spreadsheetDocId, currentPage, nextId,
+		ctx, spreadsheetDocId, activePage, nextId,
 	); err != nil {
 		return err
 	}
@@ -353,11 +353,11 @@ func (e *Expensemate) insertNewExpense(
 }
 
 func (e *Expensemate) updateExpensesNextId(
-	ctx context.Context, spreadsheetDocId, currentPage string,
+	ctx context.Context, spreadsheetDocId, activePage string,
 	nextId int,
 ) error {
 	nextIdCell := gsheettypes.BuildCell(
-		currentPage,
+		activePage,
 		gsheettypes.ExpensemateExpensesNextIdCell,
 	)
 	if _, err := gsheetclients.GetInstance().Update(
@@ -387,13 +387,13 @@ func (e *Expensemate) handleExpensesViewCommand(
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
-	currentPage, err := e.getCurrentPage(ctx, spreadsheetDocId)
+	activePage, err := e.getActivePage(ctx, spreadsheetDocId)
 	if err != nil {
-		msg.Text = "Failed to get current page for expenses. Make sure the database is set up correctly."
+		msg.Text = "Failed to get active page for expenses. Make sure the database is set up correctly."
 		return msg, nil
 	}
 
-	expenses, err := e.get5MostRecentExpenses(ctx, spreadsheetDocId, currentPage)
+	expenses, err := e.get5MostRecentExpenses(ctx, spreadsheetDocId, activePage)
 	if err != nil {
 		msg.Text = "Failed to get expenses from the database."
 		return msg, nil
@@ -416,9 +416,9 @@ func (e *Expensemate) handleExpensesViewCommand(
 
 func (e *Expensemate) get5MostRecentExpenses(
 	ctx context.Context, spreadsheetDocId,
-	currentPage string,
+	activePage string,
 ) ([]models.Expense, error) {
-	expensesNextId, err := e.getExpensesNextId(ctx, spreadsheetDocId, currentPage)
+	expensesNextId, err := e.getExpensesNextId(ctx, spreadsheetDocId, activePage)
 	if err != nil {
 		return nil, err
 	}
@@ -433,7 +433,7 @@ func (e *Expensemate) get5MostRecentExpenses(
 	)
 
 	readRange := gsheettypes.BuildRangeFromCells(
-		currentPage,
+		activePage,
 		gsheettypes.ExpensemateExpensesLeftCol,
 		topRow,
 		gsheettypes.ExpensemateExpensesRightCol,
@@ -466,15 +466,15 @@ func (e *Expensemate) handleExpensesReportCommand(
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
-	currentPage, err := e.getCurrentPage(ctx, spreadsheetDocId)
+	activePage, err := e.getActivePage(ctx, spreadsheetDocId)
 	if err != nil {
-		msg.Text = "Failed to get current page for expenses. Make sure the database is set up correctly."
+		msg.Text = "Failed to get active page for expenses. Make sure the database is set up correctly."
 		return msg, nil
 	}
 
 	// get report
 	reportReadRange := gsheettypes.BuildRange(
-		currentPage,
+		activePage,
 		gsheettypes.ExpensemateExpensesReportRange,
 	)
 	reportValues, err := gsheetclients.GetInstance().Get(ctx, spreadsheetDocId, reportReadRange)
@@ -484,7 +484,7 @@ func (e *Expensemate) handleExpensesReportCommand(
 	}
 
 	categoryReadRange := gsheettypes.BuildRange(
-		currentPage,
+		activePage,
 		gsheettypes.ExpensemateExpensesCategoryRange,
 	)
 	categoryValues, err := gsheetclients.GetInstance().Get(ctx, spreadsheetDocId, categoryReadRange)

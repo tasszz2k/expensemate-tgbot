@@ -113,8 +113,8 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 				msg, err = e.handleExpensesAdd(ctx, incomingMessage)
 			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionConfigure):
 				msg, err = e.handleGSheetsConfigure(ctx, incomingMessage)
-			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionUpdateCurrentPage):
-				msg, err = e.handleGSheetsUpdateCurrentPage(ctx, incomingMessage)
+			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionUpdateActivePage):
+				msg, err = e.handleGSheetsUpdateActivePage(ctx, incomingMessage)
 			default:
 				slog.Error("Unsupported conversation state")
 				e.endConversation(ctx, chatID)

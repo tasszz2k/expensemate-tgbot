@@ -50,7 +50,7 @@ func (e *Expensemate) handleGSheetsCommand(
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(
-				"Update Current Page",
+				"Update Active Page",
 				"gsheets:update_current_page",
 			),
 		),
@@ -83,8 +83,8 @@ You can configure a Google Sheets to store your expenses.
 <i> This is service account only, no one can access your Google Sheets except you.</i>
 `
 		e.endConversation(ctx, query.Message.Chat.ID)
-	case gsheettypes.ActionUpdateCurrentPage:
-		msg, _ = e.handleGSheetsUpdateCurrentPageCallback(ctx, query, subCommands)
+	case gsheettypes.ActionUpdateActivePage:
+		msg, _ = e.handleGSheetsUpdateActivePageCallback(ctx, query, subCommands)
 	default:
 		msg = tgbotapi.NewMessage(query.Message.Chat.ID, "")
 		msg.Text = "Unfortunately, We have not supported this action yet."
@@ -156,7 +156,7 @@ func (e *Expensemate) handleGSheetsConfigure(
 	return msg, nil
 }
 
-func (e *Expensemate) handleGSheetsUpdateCurrentPageCallback(
+func (e *Expensemate) handleGSheetsUpdateActivePageCallback(
 	ctx context.Context,
 	query *tgbotapi.CallbackQuery,
 	subCommands []string,
@@ -171,29 +171,32 @@ func (e *Expensemate) handleGSheetsUpdateCurrentPageCallback(
 	case len(subCommands) == 1: // gsheets:update_current_page
 		msg.Text = fmt.Sprintf(
 			`
-Please select the sheet you want to update the current page <i>(Make sure you cloned the template from the bot.)</i> 
-Or you can click the button below to update the current page to the current month => <b>%[1]s</b>.
+Please select the sheet you want to update the active page <i>(Make sure you cloned the template from the bot.)</i> 
+Or you can click the button below to update the active page to the current month => <b>%[1]s</b>.
 `, currentMonth,
 		)
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData(
 					fmt.Sprintf(
-						"Update current page to %s",
+						"Update active page to %s",
 						currentMonth,
 					), fmt.Sprintf("gsheets:update_current_page:%s", currentMonth),
 				),
 			),
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Other", "gsheets:update_current_page:other"),
+				tgbotapi.NewInlineKeyboardButtonData(
+					"Others",
+					"gsheets:update_current_page:others",
+				),
 			),
 		)
-	case len(subCommands) >= 2 && subCommands[1] == "other":
+	case len(subCommands) >= 2 && subCommands[1] == "others":
 		msg, _ = e.showSheetList(ctx, query.Message)
 	case len(subCommands) >= 2 && subCommands[1] != "":
-		// update the current page to the selected month
-		// the user has confirmed to update the current page to the selected month
-		msg, _ = e.updateCurrentPageValue(ctx, query.Message, subCommands[1])
+		// update the active page to the selected month
+		// the user has confirmed to update the active page to the selected month
+		msg, _ = e.updateActivePageValue(ctx, query.Message, subCommands[1])
 	}
 	return msg, nil
 }
@@ -232,7 +235,7 @@ func (e *Expensemate) showSheetList(
 		)
 	}
 	msg.ReplyMarkup = sheetsKeyboard
-	msg.Text = "Please select the sheet you want to update the current page."
+	msg.Text = "Please select the sheet you want to update the active page."
 	return msg, nil
 }
 
@@ -248,10 +251,10 @@ func getUnauthorizedMsg(msg tgbotapi.MessageConfig) tgbotapi.MessageConfig {
 	return msg
 }
 
-func (e *Expensemate) updateCurrentPageValue(
+func (e *Expensemate) updateActivePageValue(
 	ctx context.Context,
 	message *tgbotapi.Message,
-	newCurrentPageValue string,
+	newActivePageValue string,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 
@@ -261,22 +264,22 @@ func (e *Expensemate) updateCurrentPageValue(
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
-	if err = e.updateCurrentPage(ctx, spreadsheetDocId, newCurrentPageValue); err != nil {
-		msg.Text = "Failed to update the current page to the current month."
+	if err = e.updateActivePage(ctx, spreadsheetDocId, newActivePageValue); err != nil {
+		msg.Text = "Failed to update the active page to the current month."
 		return msg, err
 	}
 	msg.Text = fmt.Sprintf(
-		"The current page is updated to <b>%s</b> successfully.",
-		newCurrentPageValue,
+		"The active page is updated to <b>%s</b> successfully.",
+		newActivePageValue,
 	)
 	e.endConversation(ctx, message.Chat.ID)
 	return msg, nil
 }
 
-func (e *Expensemate) handleGSheetsUpdateCurrentPage(
+func (e *Expensemate) handleGSheetsUpdateActivePage(
 	ctx context.Context,
 	message *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
-	newCurrentPageValue := strings.TrimSpace(message.Text)
-	return e.updateCurrentPageValue(ctx, message, newCurrentPageValue)
+	newActivePageValue := strings.TrimSpace(message.Text)
+	return e.updateActivePageValue(ctx, message, newActivePageValue)
 }
