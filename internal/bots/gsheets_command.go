@@ -29,14 +29,7 @@ func (e *Expensemate) handleGSheetsCommand(
 	spreadsheetMapping, err := e.getSpreadsheetMappingByUserID(ctx, incomingMessage.From.ID)
 	if err != nil || spreadsheetMapping.SpreadSheetsURL == "" ||
 		!httputils.IsValidURL(spreadsheetMapping.SpreadSheetsURL) {
-		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
-			" Click the button below to configure it."
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
-			),
-		)
+		msg = getUnauthorizedMsg(msg)
 		return msg, nil
 	}
 
@@ -212,14 +205,7 @@ func (e *Expensemate) showSheetList(
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
 	if err != nil {
-		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
-			" Click the button below to configure it."
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
-			),
-		)
+		msg = getUnauthorizedMsg(msg)
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
@@ -250,6 +236,18 @@ func (e *Expensemate) showSheetList(
 	return msg, nil
 }
 
+func getUnauthorizedMsg(msg tgbotapi.MessageConfig) tgbotapi.MessageConfig {
+	msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
+		" Click the button below to configure it."
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
+			tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+		),
+	)
+	return msg
+}
+
 func (e *Expensemate) updateCurrentPageValue(
 	ctx context.Context,
 	message *tgbotapi.Message,
@@ -259,14 +257,7 @@ func (e *Expensemate) updateCurrentPageValue(
 
 	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
 	if err != nil {
-		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
-			" Click the button below to configure it."
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
-			),
-		)
+		msg = getUnauthorizedMsg(msg)
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()

@@ -21,10 +21,14 @@ import (
 )
 
 func (e *Expensemate) handleExpensesCommand(
-	_ context.Context,
+	ctx context.Context,
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
+	if _, err := e.getSpreadsheetMappingByUserID(ctx, incomingMessage.Chat.ID); err != nil {
+		msg = getUnauthorizedMsg(msg)
+		return msg, nil
+	}
 	msg.Text = "You can manage your expenses."
 
 	expensesKeyboard := tgbotapi.NewInlineKeyboardMarkup(
@@ -49,6 +53,10 @@ func (e *Expensemate) handleExpensesAddCommand(
 	incomingMessage *tgbotapi.Message,
 ) (tgbotapi.MessageConfig, error) {
 	msg := tgbotapi.NewMessage(incomingMessage.Chat.ID, "")
+	if _, err := e.getSpreadsheetMappingByUserID(ctx, incomingMessage.Chat.ID); err != nil {
+		msg = getUnauthorizedMsg(msg)
+		return msg, nil
+	}
 	msg.Text = fmt.Sprintf(
 		`
 Please provide the details of the expense in the following format: 📑
@@ -117,14 +125,7 @@ func (e *Expensemate) handleExpensesAdd(
 	// save the expense to the database
 	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.From.ID)
 	if err != nil {
-		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
-			" Click the button below to configure it."
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
-			),
-		)
+		msg = getUnauthorizedMsg(msg)
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
@@ -382,14 +383,7 @@ func (e *Expensemate) handleExpensesViewCommand(
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
 	if err != nil {
-		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
-			" Click the button below to configure it."
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
-			),
-		)
+		msg = getUnauthorizedMsg(msg)
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
@@ -468,14 +462,7 @@ func (e *Expensemate) handleExpensesReportCommand(
 	msg := tgbotapi.NewMessage(message.Chat.ID, "")
 	mapping, err := e.getSpreadsheetMappingByUserID(ctx, message.Chat.ID)
 	if err != nil {
-		msg.Text = "You haven't configured a Google Sheets yet or the URL is invalid." +
-			" Click the button below to configure it."
-		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
-			),
-		)
+		msg = getUnauthorizedMsg(msg)
 		return msg, nil
 	}
 	spreadsheetDocId := mapping.SpreadsheetDocId()
