@@ -2,8 +2,6 @@
 
 ExpenseMate Telegram Chatbot is a versatile tool designed to help users manage their expenses efficiently within the Telegram messaging platform. With ExpenseMate, users can easily add, view, update, and delete expenses, as well as generate expense reports and configure Google Sheets integration for seamless expense tracking.
 
-You can try the bot at <b>[t.me/expensemate_bot](https://t.me/expensemate_bot).</b>
-
 ---
 
 ## Table of Contents
