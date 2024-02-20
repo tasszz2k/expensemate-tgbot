@@ -10,6 +10,10 @@ ExpenseMate Telegram Chatbot is a versatile tool designed to help users manage t
 |-----------------------------------------------------|-------------------------------------------------------|-----------------------------------------------------------|
 | ![expenses_add.PNG](docs%2Fdemo%2Fexpenses_add.PNG) | ![expenses_view.PNG](docs%2Fdemo%2Fexpenses_view.PNG) | ![expenses_report.PNG](docs%2Fdemo%2Fexpenses_report.PNG) |
 
+| Google Sheets Report                                  |
+|-------------------------------------------------------|
+| ![sheets_report.png](docs%2Fdemo%2Fsheets_report.png) |
+
 ---
 
 ## Table of Contents
@@ -129,8 +133,8 @@ To use ExpenseMate Telegram Chatbot, follow these steps:
 ---
 
 ## Installation
-- Please follow the [installation guide](docs/installation/installation.md) to install the bot for your own use.
 
+- Please follow the [installation guide](docs/installation/installation.md) to install the bot for your own use.
 
 ---
 
