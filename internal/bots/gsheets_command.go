@@ -125,6 +125,11 @@ func (e *Expensemate) handleGSheetsConfigure(
 		return msg, nil
 	}
 
+	if err := e.checkValidSpreadsheet(url); err != nil {
+		msg.Text = fmt.Sprintf("Invalid Google Sheets URL: %s", err.Error())
+		return msg, nil
+	}
+
 	// find the user's Google Sheets URL
 	// if the user has already configured a Google Sheets URL, update it
 	// if the user has not configured a Google Sheets URL, save it

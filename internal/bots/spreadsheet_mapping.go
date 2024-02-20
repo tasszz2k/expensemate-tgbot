@@ -10,6 +10,7 @@ import (
 	"expensemate-tgbot/pkg/models"
 	"expensemate-tgbot/pkg/types/gsheettypes"
 	"expensemate-tgbot/pkg/types/types"
+	"expensemate-tgbot/pkg/utils/httputils"
 	"expensemate-tgbot/pkg/utils/timeutils"
 
 	"github.com/spf13/cast"
@@ -188,6 +189,22 @@ func (e *Expensemate) UpdateUserSheetMappingNextId(
 	)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (e *Expensemate) checkValidSpreadsheet(url string) error {
+	docId := httputils.GetGoogleSheetsDocID(url)
+	if docId == "" {
+		return errors.New("invalid google sheets url")
+	}
+	// check if the spreadsheet exists
+	e.smMux.RLock()
+	defer e.smMux.RUnlock()
+	for _, mapping := range e.spreadsheetMappings {
+		if httputils.GetGoogleSheetsDocID(mapping.SpreadSheetsURL) == docId {
+			return errors.New("spreadsheet already exists")
+		}
 	}
 	return nil
 }
