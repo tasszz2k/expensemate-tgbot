@@ -55,6 +55,7 @@ func FormatVND(amount types.Unsigned) string {
 
 func ReverseFormatVND(amountStr string) (types.Unsigned, error) {
 	amountStr = strings.ReplaceAll(amountStr, " ₫", "")
+	amountStr = strings.ReplaceAll(amountStr, " đ", "")
 	amountStr = strings.ReplaceAll(amountStr, ",", "")
 	amount, err := strconv.ParseUint(amountStr, 10, 64)
 	if err != nil {
