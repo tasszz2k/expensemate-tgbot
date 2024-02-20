@@ -122,6 +122,12 @@ To use ExpenseMate Telegram Chatbot, follow these steps:
 
 ---
 
+## Installation
+- Please follow the [installation guide](docs/installation/installation.md) to install the bot for your own use.
+
+
+---
+
 ## Contributing
 
 Contributions are welcome! To contribute to ExpenseMate Telegram Chatbot, follow these steps:
