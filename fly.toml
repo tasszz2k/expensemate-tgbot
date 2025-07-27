@@ -7,8 +7,7 @@ app = "expensemate-tgbot"
 primary_region = "sin"
 
 [build]
-  builder = "paketobuildpacks/builder:base"
-  buildpacks = ["gcr.io/paketo-buildpacks/go"]
+  dockerfile = "Dockerfile"
 
 [env]
 #  PORT = "8080"

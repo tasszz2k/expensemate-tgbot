@@ -19,3 +19,14 @@ turn_off:
 scale_to_1_instance:
 	flyctl scale count 1 --yes
 	flyctl status
+
+docker_build:
+	docker build -t expensemate-tgbot:latest .
+
+docker_run_local_with_config_file:
+	docker run -it --rm -p 8080:8080 expensemate-tgbot:latest
+
+docker_run:
+	docker run -it --rm -p 8080:8080 expensemate-tgbot:latest \
+	-e CONFIG_READER_MODE=secret
+	-e ENCODED_CONFIG=your_encoded_value
