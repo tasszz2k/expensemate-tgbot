@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"expensemate-tgbot/pkg/models"
 	"expensemate-tgbot/pkg/types/expensetypes"
@@ -111,6 +112,14 @@ func (e *Expensemate) Handle(ctx context.Context, update tgbotapi.Update) error 
 			switch state {
 			case fmt.Sprintf("%s:%s", tgtypes.CommandExpenses, expensetypes.ActionAdd):
 				msg, err = e.handleExpensesAdd(ctx, incomingMessage)
+				// start a new ExpenseAdd conversation automatically parallel to the current one
+				// so that users can add multiple expenses without having to type the /add_expense command again
+				// this is useful for users who want to add multiple expenses at once
+				go func() {
+					// wait for the message to be sent
+					time.Sleep(500 * time.Millisecond)
+					e.startConversation(ctx, chatID, fmt.Sprintf("%s:%s", tgtypes.CommandExpenses, expensetypes.ActionAdd))
+				}()
 			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionConfigure):
 				msg, err = e.handleGSheetsConfigure(ctx, incomingMessage)
 			case fmt.Sprintf("%s:%s", tgtypes.CommandGSheets, gsheettypes.ActionUpdateActivePage):
