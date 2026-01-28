@@ -1,0 +1,167 @@
+package model
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"expensemate-tgbot/internal/types"
+	"expensemate-tgbot/internal/util/currency"
+	timepkg "expensemate-tgbot/internal/util/time"
+
+	"github.com/spf13/cast"
+)
+
+// Expense represents a single expense entry
+type Expense struct {
+	ID       types.ID       `json:"id"`
+	Name     string         `json:"name"`
+	Amount   types.Unsigned `json:"amount"`
+	Group    types.Group    `json:"group"`
+	Category types.Category `json:"category"`
+	Date     time.Time      `json:"date"`
+	Note     string         `json:"note"`
+}
+
+// ParseRowToExpense parses a Google Sheets row into an Expense
+func ParseRowToExpense(row []interface{}) (Expense, error) {
+	// Pad row to ensure at least 7 columns
+	for len(row) < 7 {
+		row = append(row, "")
+	}
+
+	// Parse amount - try as number first, then formatted string
+	var amount types.Unsigned
+	if num := cast.ToUint64(row[2]); num > 0 {
+		amount = types.Unsigned(num)
+	} else {
+		// Fallback for formatted strings (legacy data)
+		var err error
+		amount, err = currency.ReverseFormatVND(cast.ToString(row[2]))
+		if err != nil {
+			return Expense{}, fmt.Errorf("invalid amount %q: %w", row[2], err)
+		}
+	}
+
+	date, err := timepkg.ParseDateOnly(cast.ToString(row[5]))
+	if err != nil {
+		date = time.Now()
+	}
+
+	// Column order: ID(0), Name(1), Amount(2), Category(3), Group(4), Date(5), Note(6)
+	return Expense{
+		ID:       types.ID(cast.ToInt64(row[0])),
+		Name:     cast.ToString(row[1]),
+		Amount:   amount,
+		Category: types.Category(cast.ToString(row[3])),
+		Group:    types.Group(cast.ToString(row[4])),
+		Date:     date,
+		Note:     cast.ToString(row[6]),
+	}, nil
+}
+
+// ParseTextToExpense parses user input text into an Expense
+func ParseTextToExpense(text string) (Expense, error) {
+	lines := strings.Split(text, "\n")
+	if len(lines) < 2 {
+		return Expense{}, errors.New("invalid format: need at least name and amount")
+	}
+
+	// Pad to 6 lines
+	for len(lines) < 6 {
+		lines = append(lines, "")
+	}
+
+	// Parse name (required)
+	name := strings.TrimSpace(lines[0])
+	if name == "" {
+		return Expense{}, errors.New("expense name is required")
+	}
+
+	// Parse amount (required)
+	amount := currency.ParseAmount(lines[1])
+	if amount == 0 {
+		return Expense{}, fmt.Errorf("invalid amount: %q", lines[1])
+	}
+
+	// Parse group (optional, default: MUST HAVE)
+	var group types.Group
+	groupInput := strings.TrimSpace(lines[2])
+	if groupInput == "" {
+		group = types.GroupMustHave
+	} else {
+		var ok bool
+		group, ok = types.GetGroupByAlias(groupInput)
+		if !ok {
+			return Expense{}, fmt.Errorf("invalid group: %q (use /expenses_help for list)", groupInput)
+		}
+	}
+
+	// Parse category (optional, default: Unclassified for non-income)
+	var category types.Category
+	categoryInput := strings.TrimSpace(lines[3])
+	if categoryInput == "" {
+		if group != types.GroupIncome {
+			category = types.CategoryUnclassified
+		}
+	} else {
+		var ok bool
+		category, ok = types.GetCategoryByAlias(categoryInput)
+		if !ok {
+			return Expense{}, fmt.Errorf("invalid category: %q (use /expenses_help for list)", categoryInput)
+		}
+	}
+
+	// Parse date (optional, default: today)
+	date := time.Now()
+	if lines[4] != "" {
+		parsed, err := time.Parse(timepkg.DateOnlyFormat, lines[4])
+		if err == nil {
+			date = parsed
+		}
+	}
+
+	return Expense{
+		Name:     name,
+		Amount:   types.Unsigned(amount),
+		Group:    group,
+		Category: category,
+		Date:     date,
+		Note:     strings.TrimSpace(lines[5]),
+	}, nil
+}
+
+// FormatHTML returns the expense as HTML-formatted string
+func (e Expense) FormatHTML() string {
+	return fmt.Sprintf(
+		`<b>ID</b>: <i>%d</i>
+<b>Name</b>: <i>%s</i>
+<b>Amount</b>: <i>%s</i>
+<b>Group</b>: <i>%s</i>
+<b>Category</b>: <i>%s</i>
+<b>Date</b>: <i>%s</i>
+<b>Note</b>: <i>%s</i>`,
+		e.ID,
+		e.Name,
+		currency.FormatVND(e.Amount),
+		e.Group,
+		e.Category,
+		timepkg.FormatDateOnly(e.Date),
+		e.Note,
+	)
+}
+
+// ToRow converts Expense to a Google Sheets row
+// Column order: ID, Name, Amount, Category, Group, Date, Note
+func (e Expense) ToRow() []interface{} {
+	return []interface{}{
+		e.ID, // types.ID (int64)
+		e.Name,
+		e.Amount,   // types.Unsigned (uint64) - spreadsheet formats it
+		e.Category, // types.Category
+		e.Group,    // types.Group
+		timepkg.FormatDateOnly(e.Date),
+		e.Note,
+	}
+}

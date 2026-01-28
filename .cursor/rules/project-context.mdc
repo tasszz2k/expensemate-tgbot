@@ -1,0 +1,245 @@
+---
+description: Expensemate Telegram Bot project context and architecture
+globs: 
+alwaysApply: true
+---
+
+# Expensemate Telegram Bot
+
+A personal expense tracking Telegram bot with Google Sheets as the data store. Users can add, view, and report expenses with categorization and grouping.
+
+## Tech Stack
+
+- Go 1.25, tgbotapi (Telegram), Google Sheets API v4
+- JWT service account authentication
+- logrus (structured logging), Viper (config)
+
+## Architecture Overview
+
+```
+cmd/bot/main.go              - Entry point, dependency injection
+internal/
+  bot/bot.go                 - Bot struct, Handle() router
+  handler/
+    expense.go               - Expense command handlers
+    gsheets.go               - GSheets command handlers
+    start.go                 - Start/help/settings handlers
+  service/
+    expense.go               - Expense business logic
+    mapping.go               - User-spreadsheet mapping service
+  repository/sheets/
+    client.go                - Google Sheets API wrapper
+    expense.go               - Expense CRUD operations
+    mapping.go               - User mapping CRUD operations
+  state/conversation.go      - Conversation state management
+  config/config.go           - Configuration loading
+  log/logger.go              - Structured logging with logrus
+  model/
+    expense.go               - Expense model
+    mapping.go               - UserSheetMapping model
+  types/
+    common.go                - Base types (ID, Unsigned, etc.)
+    command.go               - Telegram command constants
+    expense.go               - Expense groups, categories, actions
+    gsheets.go               - GSheets cell references, actions
+  util/
+    currency/currency.go     - Currency parsing and formatting
+    time/time.go             - Time parsing and formatting
+    http/http.go             - URL validation utilities
+```
+
+---
+
+## Layered Architecture
+
+```
+[Telegram] -> [Bot Router] -> [Handlers] -> [Services] -> [Repositories] -> [Google Sheets]
+                   |
+            [State Manager]
+```
+
+- **Bot Layer**: Routes updates to appropriate handlers
+- **Handler Layer**: Handles user interactions, formats responses
+- **Service Layer**: Business logic, validation
+- **Repository Layer**: Data access, Google Sheets operations
+
+---
+
+## Google Sheets Structure
+
+### 1. Database Spreadsheet (Central)
+
+Stores user-to-spreadsheet mappings. All users share this single database.
+
+**Sheet: `user_sheet_mappings`**
+
+| Row | A (ID) | B (UserID) | C (Username) | D (FullName) | E (SpreadSheetsURL) | F (CreatedAt) | G (UpdatedAt) | H (Status) |
+|-----|--------|------------|--------------|--------------|---------------------|---------------|---------------|------------|
+| 1 | user_sheet_mappings | [NextID] | | | | | | |
+| 2 | ID | UserID | Username | FullName | SpreadSheets URL | Created At | Updated At | Status |
+| 3 | 1 | 1234567890 | | John Doe | https://docs... | 1/1/2024 | 1/1/2024 | MAPPED |
+
+**Key Cells:**
+- `B1`: Next ID counter
+- Row 2: Header row
+- Row 3+: User data
+
+---
+
+### 2. User Expense Spreadsheet (Per-User)
+
+Each user has their own spreadsheet with monthly sheets.
+
+**Sheet: `Database`**
+- `B2`: Active page name (e.g., "2026_01")
+
+**Monthly Sheets (format: `YYYY_MM`)**
+
+| Row | A (ID) | B (Name) | C (Amount) | D (Category) | E (Group) | F (Date) | G (Note) |
+|-----|--------|----------|------------|--------------|-----------|----------|----------|
+| 3 | ID | Name | Amount | Category | Group | Date | Note |
+| 4 | 1 | lunch | 50,000 d | Food | MUST HAVE | 1/1/2026 | |
+
+**Key Cells:**
+- `B2`: Next expense ID counter
+- Row 3: Header row
+- Row 4+: Expense data
+- `I3:J9`: Group report
+- `L3:N15`: Category report
+
+---
+
+## Cell References (internal/types/gsheets.go)
+
+```go
+// Database Spreadsheet
+UserMappingSheetName  = "user_sheet_mappings"
+UserMappingNextIDCell = "B1"
+UserMappingTopRow     = 2
+
+// User Expense Spreadsheet
+DatabaseSheetName      = "Database"
+DatabaseActivePageCell = "B2"
+ExpensesNextIDCell     = "B2"
+ExpensesTopRow         = 3
+ExpensesReportRange    = "I3:J9"
+ExpensesCategoryRange  = "L3:N15"
+```
+
+---
+
+## Data Models (internal/model/)
+
+```go
+type Expense struct {
+    ID       types.ID
+    Name     string
+    Amount   types.Unsigned
+    Group    types.Group
+    Category types.Category
+    Date     time.Time
+    Note     string
+}
+
+type UserSheetMapping struct {
+    ID              types.ID
+    UserID          types.ID
+    Username        string
+    FullName        string
+    SpreadSheetsURL string
+    CreatedAt       time.Time
+    UpdatedAt       time.Time
+    Status          MappingStatus
+}
+```
+
+---
+
+## Expense Groups (5)
+
+| Group | Aliases | Description |
+|-------|---------|-------------|
+| INCOME | i | Thu nhap |
+| MUST HAVE | mh | Chi tieu thiet yeu |
+| NICE TO HAVE | nth | Khong thiet yeu nhung nen chi |
+| WASTED | w | Lang phi |
+| OTHER | o | Khac |
+
+## Expense Categories (13)
+
+| Category | Aliases |
+|----------|---------|
+| Unclassified | uc, cpl |
+| Food | f, au |
+| Housing | h, no |
+| Transportation | t, dl |
+| Utilities | u, ti |
+| Healthcare | hc, sk |
+| Entertainment | en, gt |
+| Education | ed, gd |
+| Clothing | c, qa |
+| Personal Care | pc, cscn |
+| Miscellaneous | m, dlt |
+| Travel | tv |
+| Other | o, k |
+
+---
+
+## Conversation States (internal/state/)
+
+| State | Description |
+|-------|-------------|
+| `expenses:add` | Waiting for expense input |
+| `gsheets:configure` | Waiting for Google Sheets URL |
+| `gsheets:update_current_page` | Waiting for active page name |
+
+---
+
+## Commands Reference
+
+| Command | Handler | Description |
+|---------|---------|-------------|
+| /start | StartHandler.HandleStart | Greeting |
+| /help | StartHandler.HandleHelp | List commands |
+| /expenses | ExpenseHandler.HandleExpensesCommand | Expense menu |
+| /expenses_add | ExpenseHandler.HandleExpensesAddCommand | Add expense |
+| /expenses_help | ExpenseHandler.HandleExpensesHelp | Groups/categories |
+| /gsheets | GSheetsHandler.HandleGSheetsCommand | Configure sheets |
+| /settings | StartHandler.HandleSettings | Settings (not impl) |
+| /feedback | StartHandler.HandleFeedback | Feedback (not impl) |
+
+---
+
+## Structured Logging
+
+Uses logrus with consistent context fields:
+
+```go
+log.WithMessage(msg).
+    WithField("action", "expenses_add").
+    Info("starting add expense flow")
+```
+
+**Standard fields:** user_id, username, chat_id, chat_type, action, expense_id
+
+---
+
+## Dependency Injection
+
+All dependencies are injected via constructors in main.go:
+
+```go
+sheetsClient := sheets.NewClient(cfg)
+expenseRepo := sheets.NewExpenseRepository(sheetsClient)
+mappingRepo := sheets.NewMappingRepository(sheetsClient, dbSpreadsheetID)
+mappingService := service.NewMappingService(mappingRepo)
+expenseService := service.NewExpenseService(expenseRepo, mappingService)
+```
+
+---
+
+## Service Account
+
+**Email:** `housematee-gsheets@housematee.iam.gserviceaccount.com`
+
+Users must share their spreadsheet with this email (Editor access).

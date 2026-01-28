@@ -1,0 +1,161 @@
+---
+description: Telegram bot command and handler patterns
+globs: "internal/{bot,handler}/**/*.go"
+alwaysApply: false
+---
+
+# Telegram Bot Patterns
+
+## Handler Structure
+
+Handlers are structs with injected dependencies:
+
+```go
+type ExpenseHandler struct {
+    expenseService *service.ExpenseService
+    mappingService *service.MappingService
+    stateManager   *state.Manager
+}
+
+func NewExpenseHandler(
+    expenseService *service.ExpenseService,
+    mappingService *service.MappingService,
+    stateManager *state.Manager,
+) *ExpenseHandler {
+    return &ExpenseHandler{
+        expenseService: expenseService,
+        mappingService: mappingService,
+        stateManager:   stateManager,
+    }
+}
+```
+
+## Command Handler Pattern
+
+```go
+func (h *ExpenseHandler) HandleExpensesCommand(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+    logger := log.WithMessage(msg)
+    log.WithAction(logger, "expenses").Info("user accessed expenses menu")
+
+    reply := tgbotapi.NewMessage(msg.Chat.ID, "")
+
+    // Check authorization
+    mapping, err := h.mappingService.GetByUserID(ctx, types.ID(msg.From.ID))
+    if err != nil || mapping == nil {
+        return h.getUnauthorizedMsg(reply), nil
+    }
+
+    // Build response
+    reply.Text = "Manage your expenses:"
+    reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(...)
+
+    return reply, nil
+}
+```
+
+## Callback Handler Pattern
+
+```go
+func (h *ExpenseHandler) HandleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, action string, subCommands []string) (tgbotapi.MessageConfig, error) {
+    logger := log.WithCallback(cb)
+    log.WithAction(logger, "expenses_callback").Info("processing callback")
+
+    switch types.ExpenseAction(action) {
+    case types.ExpenseActionAdd:
+        return h.HandleExpensesAddCommand(ctx, cb.Message)
+    case types.ExpenseActionView:
+        h.stateManager.End(cb.Message.Chat.ID)
+        return h.HandleExpensesView(ctx, cb.Message)
+    default:
+        return tgbotapi.NewMessage(cb.Message.Chat.ID, "Not implemented"), nil
+    }
+}
+```
+
+## Conversation State Pattern
+
+```go
+// Start conversation
+h.stateManager.Start(msg.Chat.ID, state.StateExpensesAdd)
+
+// Check state
+currentState := h.stateManager.Get(chatID)
+
+// End conversation
+h.stateManager.End(msg.Chat.ID)
+```
+
+## Bot Router Pattern
+
+The bot router in `internal/bot/bot.go` handles:
+
+1. Message routing (commands vs conversation input)
+2. Callback routing (parse command and action)
+3. Response formatting (HTML mode)
+
+```go
+func (b *Bot) Handle(ctx context.Context, update tgbotapi.Update) error {
+    var msg tgbotapi.MessageConfig
+
+    switch {
+    case update.Message != nil:
+        msg, _ = b.handleMessage(ctx, update.Message)
+    case update.CallbackQuery != nil:
+        msg, _ = b.handleCallback(ctx, update.CallbackQuery)
+    }
+
+    msg.ParseMode = "HTML"
+    b.api.Send(msg)
+    return nil
+}
+```
+
+## Callback Data Format
+
+Pattern: `[command]:[action]:[sub_action]`
+
+```go
+// Build
+data := types.BuildCallbackData(types.CommandExpenses, "add")
+// Result: "expenses:add"
+
+// Parse
+command, subCommands := types.ParseCallbackData("expenses:add")
+// command = "expenses", subCommands = ["add"]
+```
+
+## Inline Keyboard Pattern
+
+```go
+reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+    tgbotapi.NewInlineKeyboardRow(
+        tgbotapi.NewInlineKeyboardButtonData("Add", "expenses:add"),
+        tgbotapi.NewInlineKeyboardButtonData("View", "expenses:view"),
+    ),
+    tgbotapi.NewInlineKeyboardRow(
+        tgbotapi.NewInlineKeyboardButtonURL("View Sheets", spreadsheetURL),
+    ),
+)
+```
+
+## Unauthorized Response Pattern
+
+```go
+func (h *ExpenseHandler) getUnauthorizedMsg(msg tgbotapi.MessageConfig) tgbotapi.MessageConfig {
+    msg.Text = "Please configure Google Sheets first using /gsheets command."
+    msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+        tgbotapi.NewInlineKeyboardRow(
+            tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
+        ),
+    )
+    return msg
+}
+```
+
+## Adding New Commands
+
+1. Add command constant to `internal/types/command.go`
+2. Create handler method in appropriate handler file
+3. Register in `internal/bot/bot.go` handleCommand switch
+4. If has callbacks, register in handleCallback switch
+5. Update `project-context.mdc` Commands Reference table

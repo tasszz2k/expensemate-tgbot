@@ -1,0 +1,138 @@
+---
+description: Go coding standards for expensemate-tgbot
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# Go Coding Standards
+
+## Error Handling
+
+Always wrap errors with context:
+
+```go
+if err != nil {
+    return fmt.Errorf("getting user mapping: %w", err)
+}
+```
+
+## Structured Logging with logrus
+
+Use the log package helpers for consistent logging:
+
+```go
+// With message context
+logger := log.WithMessage(msg)
+log.WithAction(logger, "expenses_add").Info("starting add expense flow")
+
+// With callback context
+logger := log.WithCallback(cb)
+log.WithAction(logger, "gsheets_configure").Info("processing callback")
+
+// With expense context
+log.WithExpense(logger, int64(expense.ID), expense.Name).
+    WithField("amount", expense.Amount).
+    Info("expense added successfully")
+```
+
+**Log Format:**
+```
+time="2026-01-28T21:37:17+07:00" level=info msg="starting add expense flow" action=expenses_add chat_id=123456 user_id=123456 username=testuser
+```
+
+**Standard Fields:**
+- `user_id` - Telegram user ID
+- `username` - Telegram @username
+- `chat_id` - Telegram chat ID
+- `chat_type` - private/group
+- `action` - Current action name
+- `expense_id` - Expense ID (when relevant)
+- `spreadsheet_id` - Google Sheets ID (when relevant)
+
+## Dependency Injection
+
+Never use singletons. Inject dependencies via constructors:
+
+```go
+// Good
+func NewExpenseService(repo *sheets.ExpenseRepository, mappingService *MappingService) *ExpenseService {
+    return &ExpenseService{
+        repo:           repo,
+        mappingService: mappingService,
+    }
+}
+
+// Bad - global singleton
+var instance *ExpenseService
+func GetInstance() *ExpenseService { return instance }
+```
+
+## Configuration
+
+Load config via `config.Load()` in main.go:
+
+```go
+cfg, err := config.Load()
+if err != nil {
+    log.Logger.Fatalf("failed to load config: %v", err)
+}
+```
+
+## Google Sheets Client
+
+Use injected client, not singleton:
+
+```go
+// Create client
+sheetsClient, err := sheets.NewClient(cfg)
+
+// Use in repository
+expenseRepo := sheets.NewExpenseRepository(sheetsClient)
+```
+
+## Naming Conventions
+
+- Handlers: `Handle{Action}` (e.g., `HandleExpensesCommand`)
+- Services: `{Domain}Service` (e.g., `ExpenseService`)
+- Repositories: `{Domain}Repository` (e.g., `ExpenseRepository`)
+- State constants: `State{Domain}{Action}` (e.g., `StateExpensesAdd`)
+
+## No Emojis
+
+Do not use emojis in code, comments, or log messages.
+
+---
+
+# Documentation Sync Rule (CRITICAL)
+
+**Rule: Keep Cursor Rules in Sync with Code Changes**
+
+Whenever code changes affect any of the following, update the corresponding rule file:
+
+| Change Type | Update Required |
+|-------------|-----------------|
+| New command added | `project-context.mdc` Commands Reference |
+| New conversation state | `project-context.mdc` Conversation States |
+| Google Sheets cell/range changes | `project-context.mdc` Cell References |
+| New data model or field | `project-context.mdc` Data Models |
+| New expense group/category | `project-context.mdc` Groups/Categories |
+| Handler pattern changes | `telegram-bot.mdc` patterns |
+| Go coding convention changes | `go-standards.mdc` |
+
+**Location:** `.cursor/rules/`
+
+---
+
+# Privacy Rule (CRITICAL)
+
+**Rule: No Personal Data in Documentation**
+
+All documentation and cursor rules MUST use fake/sample data only:
+
+- Fake user IDs: `1234567890`, `9876543210`
+- Sample usernames: `@sampleuser`, `@testuser`
+- Sample names: `John Doe`, `Jane Smith`
+- Placeholder URLs: `https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/...`
+- Sample amounts: `50,000`, `100,000`
+
+Never include real Telegram user IDs, usernames, spreadsheet URLs, or production data.

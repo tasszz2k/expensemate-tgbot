@@ -1,12 +1,11 @@
-I. Expense group:
+# Expense Groups
 
-1. INCOME / thu nhập
-    - Alias: I
-2. MUST HAVE / chi tiêu thiết yếu
-    - Alias: MH
-3. NICE TO HAVE / không phải chi tiêu thiết yếu, nhưng nên chi, có thì tốt
-    - Alias: NTH
-4. WASTE / chi tiêu không cần thiết, lãng phí
-    - Alias: W
-5. OTHER / khác
-    - Alias: O
+| # | Group | Tiếng Việt | Aliases | Description |
+|---|-------|------------|---------|-------------|
+| 1 | Income | Thu nhập | i, tn | Money earned |
+| 2 | Investment | Đầu tư | inv, dt | Stocks, crypto, savings |
+| 3 | Must Have | Thiết yếu | mh, ty | Essential spending |
+| 4 | Nice to Have | Nên chi | nth, nc | Not essential, but good to have |
+| 5 | Waste | Lãng phí | w, lp | Unnecessary spending |
+| 6 | Family | Gia đình | fam, gd | Support for family |
+| 7 | Lover | Người yêu | lov, ny | Partner spending |

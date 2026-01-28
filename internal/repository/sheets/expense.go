@@ -1,0 +1,176 @@
+package sheets
+
+import (
+	"context"
+	"fmt"
+
+	"expensemate-tgbot/internal/log"
+	"expensemate-tgbot/internal/model"
+	"expensemate-tgbot/internal/types"
+
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cast"
+)
+
+// ExpenseRepository handles expense data in Google Sheets
+type ExpenseRepository struct {
+	client *Client
+}
+
+// NewExpenseRepository creates a new ExpenseRepository
+func NewExpenseRepository(client *Client) *ExpenseRepository {
+	return &ExpenseRepository{client: client}
+}
+
+// GetActivePage returns the active page name from Database sheet
+func (r *ExpenseRepository) GetActivePage(ctx context.Context, spreadsheetID string) (string, error) {
+	cell := types.BuildCell(types.DatabaseSheetName, types.DatabaseActivePageCell)
+
+	log.Debug("reading active page", logrus.Fields{
+		"spreadsheet_id": spreadsheetID,
+		"cell":           cell,
+	})
+
+	value, err := r.client.GetValue(ctx, spreadsheetID, cell)
+	if err != nil {
+		return "", fmt.Errorf("getting active page: %w", err)
+	}
+
+	log.Debug("active page value", logrus.Fields{
+		"value": value,
+	})
+
+	return value, nil
+}
+
+// GetNextID returns the next expense ID from the active page
+func (r *ExpenseRepository) GetNextID(ctx context.Context, spreadsheetID, sheetName string) (types.ID, error) {
+	cell := types.BuildCell(sheetName, types.ExpensesNextIDCell)
+	value, err := r.client.GetValue(ctx, spreadsheetID, cell)
+	if err != nil {
+		return 0, fmt.Errorf("getting next ID: %w", err)
+	}
+	return types.ID(cast.ToInt64(value)), nil
+}
+
+// UpdateNextID updates the next expense ID counter
+func (r *ExpenseRepository) UpdateNextID(ctx context.Context, spreadsheetID, sheetName string, nextID types.ID) error {
+	cell := types.BuildCell(sheetName, types.ExpensesNextIDCell)
+	return r.client.Update(ctx, spreadsheetID, cell, [][]interface{}{{int64(nextID)}})
+}
+
+// Create creates a new expense in the spreadsheet
+func (r *ExpenseRepository) Create(ctx context.Context, spreadsheetID, sheetName string, expense *model.Expense) error {
+	row := types.ExpensesTopRow + int(expense.ID)
+	writeRange := types.BuildRangeFromCells(sheetName, types.ExpensesLeftCol, row, types.ExpensesRightCol, row)
+
+	log.Debug("writing expense", logrus.Fields{
+		"spreadsheet_id": spreadsheetID,
+		"range":          writeRange,
+		"expense_id":     expense.ID,
+	})
+
+	return r.client.Update(ctx, spreadsheetID, writeRange, [][]interface{}{expense.ToRow()})
+}
+
+// GetByID retrieves an expense by ID
+func (r *ExpenseRepository) GetByID(ctx context.Context, spreadsheetID, sheetName string, id types.ID) (*model.Expense, error) {
+	row := types.ExpensesTopRow + int(id)
+	readRange := types.BuildRangeFromCells(sheetName, types.ExpensesLeftCol, row, types.ExpensesRightCol, row)
+
+	resp, err := r.client.Get(ctx, spreadsheetID, readRange)
+	if err != nil {
+		return nil, fmt.Errorf("reading expense %d: %w", id, err)
+	}
+
+	if len(resp.Values) == 0 {
+		return nil, nil
+	}
+
+	expense, err := model.ParseRowToExpense(resp.Values[0])
+	if err != nil {
+		return nil, fmt.Errorf("parsing expense %d: %w", id, err)
+	}
+
+	return &expense, nil
+}
+
+// GetRecent retrieves the most recent expenses
+func (r *ExpenseRepository) GetRecent(ctx context.Context, spreadsheetID, sheetName string, lastID types.ID, limit int) ([]model.Expense, error) {
+	startRow := max(types.ExpensesTopRow+int(lastID)-limit+1, types.ExpensesTopRow+1)
+	endRow := types.ExpensesTopRow + int(lastID)
+
+	readRange := types.BuildRangeFromCells(sheetName, types.ExpensesLeftCol, startRow, types.ExpensesRightCol, endRow)
+
+	log.Debug("reading recent expenses", logrus.Fields{
+		"spreadsheet_id": spreadsheetID,
+		"range":          readRange,
+	})
+
+	resp, err := r.client.Get(ctx, spreadsheetID, readRange)
+	if err != nil {
+		return nil, fmt.Errorf("reading recent expenses: %w", err)
+	}
+
+	var expenses []model.Expense
+	for _, row := range resp.Values {
+		if len(row) == 0 || cast.ToString(row[0]) == "" {
+			continue
+		}
+		expense, err := model.ParseRowToExpense(row)
+		if err != nil {
+			continue
+		}
+		// Skip soft-deleted expenses (empty name)
+		if expense.Name == "" {
+			continue
+		}
+		expenses = append(expenses, expense)
+	}
+
+	return expenses, nil
+}
+
+// Update updates an existing expense
+func (r *ExpenseRepository) Update(ctx context.Context, spreadsheetID, sheetName string, expense *model.Expense) error {
+	return r.Create(ctx, spreadsheetID, sheetName, expense)
+}
+
+// SoftDelete marks an expense as deleted by clearing fields except ID and Note
+func (r *ExpenseRepository) SoftDelete(ctx context.Context, spreadsheetID, sheetName string, id types.ID, note string) error {
+	row := types.ExpensesTopRow + int(id)
+	writeRange := types.BuildRangeFromCells(sheetName, types.ExpensesLeftCol, row, types.ExpensesRightCol, row)
+
+	// Keep ID, clear other fields, update note with deletion info
+	values := [][]interface{}{{
+		int64(id), // ID
+		"",        // Name (cleared)
+		"",        // Amount (cleared)
+		"",        // Group (cleared)
+		"",        // Category (cleared)
+		"",        // Date (cleared)
+		note,      // Note (audit log)
+	}}
+
+	return r.client.Update(ctx, spreadsheetID, writeRange, values)
+}
+
+// GetGroupReport retrieves the group-based expense report
+func (r *ExpenseRepository) GetGroupReport(ctx context.Context, spreadsheetID, sheetName string) ([][]interface{}, error) {
+	readRange := types.BuildRange(sheetName, types.ExpensesReportRange)
+	resp, err := r.client.Get(ctx, spreadsheetID, readRange)
+	if err != nil {
+		return nil, fmt.Errorf("reading group report: %w", err)
+	}
+	return resp.Values, nil
+}
+
+// GetCategoryReport retrieves the category-based expense report
+func (r *ExpenseRepository) GetCategoryReport(ctx context.Context, spreadsheetID, sheetName string) ([][]interface{}, error) {
+	readRange := types.BuildRange(sheetName, types.ExpensesCategoryRange)
+	resp, err := r.client.Get(ctx, spreadsheetID, readRange)
+	if err != nil {
+		return nil, fmt.Errorf("reading category report: %w", err)
+	}
+	return resp.Values, nil
+}
