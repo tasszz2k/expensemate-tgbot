@@ -7,22 +7,36 @@ import (
 	"expensemate-tgbot/internal/types"
 )
 
+// VoicePendingData stores data for voice clarification flow
+type VoicePendingData struct {
+	OriginalText string // The original transcribed text
+	ParsedName   string
+	ParsedAmount uint64
+	ParsedGroup  string
+	ParsedCat    string
+	ParsedDate   string
+	ParsedNote   string
+}
+
 // Manager handles conversation state for users
 type Manager struct {
-	states map[int64]string
-	mu     sync.RWMutex
+	states           map[int64]string
+	voicePendingData map[int64]*VoicePendingData
+	mu               sync.RWMutex
 }
 
 // NewManager creates a new conversation state manager
 func NewManager() *Manager {
 	return &Manager{
-		states: make(map[int64]string),
+		states:           make(map[int64]string),
+		voicePendingData: make(map[int64]*VoicePendingData),
 	}
 }
 
 // State constants for conversation flows
 const (
 	StateExpensesAdd             = "expenses:add"
+	StateExpensesVoiceClarify    = "expenses:voice_clarify"
 	StateGSheetsConfig           = "gsheets:configure"
 	StateGSheetsUpdateActivePage = "gsheets:update_current_page"
 )
@@ -59,4 +73,25 @@ func (m *Manager) IsInConversation(chatID int64) bool {
 	defer m.mu.RUnlock()
 	_, exists := m.states[chatID]
 	return exists
+}
+
+// SetVoicePendingData stores pending voice expense data for clarification
+func (m *Manager) SetVoicePendingData(chatID int64, data *VoicePendingData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.voicePendingData[chatID] = data
+}
+
+// GetVoicePendingData retrieves pending voice expense data
+func (m *Manager) GetVoicePendingData(chatID int64) *VoicePendingData {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.voicePendingData[chatID]
+}
+
+// ClearVoicePendingData clears pending voice expense data
+func (m *Manager) ClearVoicePendingData(chatID int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.voicePendingData, chatID)
 }

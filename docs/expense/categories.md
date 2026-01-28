@@ -1,7 +1,7 @@
 | # | Category | Aliases | Purpose |
 |---|----------|---------|---------|
 | 0 | Unclassified / Chưa phân loại | uc, cpl | System default (when not specified) |
-| 1 | Dining / Ăn ngoài | din, an | Restaurants, cafes, delivery |
+| 1 | Food / Ăn ngoài | f, an, cf | Restaurants, cafes, delivery |
 | 2 | Groceries / Đi chợ | gr, dc | Food at home, market, supermarket |
 | 3 | Transport / Đi lại | tr, dl | Grab, gas, parking, commute |
 | 4 | Entertainment / Giải trí | ent, gt | Movies, games, fun activities |

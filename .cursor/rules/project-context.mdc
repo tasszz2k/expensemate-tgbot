@@ -11,6 +11,7 @@ A personal expense tracking Telegram bot with Google Sheets as the data store. U
 ## Tech Stack
 
 - Go 1.25, tgbotapi (Telegram), Google Sheets API v4
+- OpenAI API (Whisper for speech-to-text, ChatGPT for NLP parsing)
 - JWT service account authentication
 - logrus (structured logging), Viper (config)
 
@@ -21,16 +22,19 @@ cmd/bot/main.go              - Entry point, dependency injection
 internal/
   bot/bot.go                 - Bot struct, Handle() router
   handler/
-    expense.go               - Expense command handlers
+    expense.go               - Expense command handlers (incl. voice)
     gsheets.go               - GSheets command handlers
     start.go                 - Start/help/settings handlers
   service/
     expense.go               - Expense business logic
+    voice_expense.go         - Voice expense processing
     mapping.go               - User-spreadsheet mapping service
-  repository/sheets/
-    client.go                - Google Sheets API wrapper
-    expense.go               - Expense CRUD operations
-    mapping.go               - User mapping CRUD operations
+  repository/
+    openai/client.go         - OpenAI Whisper + ChatGPT client
+    sheets/
+      client.go              - Google Sheets API wrapper
+      expense.go             - Expense CRUD operations
+      mapping.go             - User mapping CRUD operations
   state/conversation.go      - Conversation state management
   config/config.go           - Configuration loading
   log/logger.go              - Structured logging with logrus
@@ -95,9 +99,9 @@ Each user has their own spreadsheet with monthly sheets.
 
 **Monthly Sheets (format: `YYYY_MM`)**
 
-| Row | A (ID) | B (Name) | C (Amount) | D (Category) | E (Group) | F (Date) | G (Note) |
-|-----|--------|----------|------------|--------------|-----------|----------|----------|
-| 3 | ID | Name | Amount | Category | Group | Date | Note |
+| Row | A (ID) | B (Name) | C (Amount) | D (Group) | E (Category) | F (Date) | G (Note) |
+|-----|--------|----------|------------|-----------|--------------|----------|----------|
+| 3 | ID | Name | Amount | Group | Category | Date | Note |
 | 4 | 1 | lunch | 50,000 d | Food | MUST HAVE | 1/1/2026 | |
 
 **Key Cells:**
@@ -155,33 +159,106 @@ type UserSheetMapping struct {
 
 ---
 
-## Expense Groups (5)
+## Expense Groups (7)
 
 | Group | Aliases | Description |
 |-------|---------|-------------|
-| INCOME | i | Thu nhap |
-| MUST HAVE | mh | Chi tieu thiet yeu |
-| NICE TO HAVE | nth | Khong thiet yeu nhung nen chi |
-| WASTED | w | Lang phi |
-| OTHER | o | Khac |
+| INCOME | i, tn | Thu nhập |
+| INVESTMENT | inv, dt | Đầu tư |
+| MUST HAVE | mh, ty | Thiết yếu |
+| NICE TO HAVE | nth, nc | Nên chi |
+| WASTED | w, lp, waste, wasted | Lãng phí |
+| FAMILY | fam, gd | Gia đình |
+| LOVER | lov, ny | Người yêu |
 
-## Expense Categories (13)
+## Expense Categories (19)
 
-| Category | Aliases |
-|----------|---------|
-| Unclassified | uc, cpl |
-| Food | f, au |
-| Housing | h, no |
-| Transportation | t, dl |
-| Utilities | u, ti |
-| Healthcare | hc, sk |
-| Entertainment | en, gt |
-| Education | ed, gd |
-| Clothing | c, qa |
-| Personal Care | pc, cscn |
-| Miscellaneous | m, dlt |
-| Travel | tv |
-| Other | o, k |
+| Category | Aliases | Description |
+|----------|---------|-------------|
+| Unclassified | uc, cpl | Chưa phân loại (default) |
+| Food | f, an, cf | Ăn ngoài |
+| Groceries | gr, dc | Đi chợ |
+| Transport | tr, dl | Đi lại |
+| Entertainment | ent, gt | Giải trí |
+| Miscellaneous | mis, lt | Linh tinh |
+| Subscription | sub, dk | Đăng ký |
+| Housing | hou, no | Nhà ở |
+| Personal Care | pc, cs | Chăm sóc |
+| Healthcare | hc, sk | Sức khỏe |
+| Clothing | clo, qa | Quần áo |
+| Education | edu, hoc | Giáo dục |
+| Tech | tech, cn | Công nghệ |
+| Travel | tv, dul | Du lịch |
+| Present | pre, qt | Quà tặng |
+| Life Events | le, hh | Hiếu hỉ |
+| Lover | lov, ny | Người yêu |
+| Family | fam, gd | Gia đình |
+| Lost Money | lm, mat | Mất tiền |
+
+## Group & Category Selection Feature
+
+When an expense is added without category/group, the bot shows inline keyboard buttons for quick selection. The message is edited in place (not new messages) and shows the final expense after completion.
+
+**Input order:** name, amount, group, category, date, note (matches spreadsheet column order D=Group, E=Category)
+
+**Flow:**
+1. User adds expense with only name and amount
+2. If group is default (MUST HAVE), bot edits message to show group selection buttons
+3. User selects group (or skips)
+4. If category is Unclassified, bot edits message to show category selection buttons
+5. User selects category (or skips)
+6. Bot edits message to show final expense record
+
+**Date format:** Uses datetime format (d/m/yyyy HH:mm) when auto-generated
+
+**Callback formats:**
+- Group: `expenses:setgrp:{expense_id}:{group_alias}:{needs_category_flag}`
+- Category: `expenses:setcat:{expense_id}:{category_alias}`
+
+**Button layout:** 2 buttons per row + Skip button at bottom
+
+**Report Fields:**
+- Self Expenses / Chi bản thân: Personal spending (excludes Family & Lover)
+- Total Expenses / Tổng chi: Sum of all expenses
+- Net Change / Thay đổi ròng: Income - Total Expenses
+
+---
+
+## Voice Input Feature
+
+The bot supports voice input for adding expenses using OpenAI Whisper and ChatGPT.
+
+**Requirements:**
+- OpenAI API key configured in config
+- User must have Google Sheets configured
+
+**Flow:**
+1. User sends a voice message (in any context)
+2. Bot downloads audio from Telegram
+3. Whisper API transcribes audio to text
+4. ChatGPT parses natural language into expense fields
+5. If parsing is clear, expense is created immediately
+6. If unclear (e.g., missing amount), bot asks for clarification
+7. User responds with clarification
+8. Bot re-parses and creates expense
+
+**Example inputs:**
+- "Lunch meeting 150k must have dining" -> Name: Lunch meeting, Amount: 150,000, Group: mh, Category: din
+- "Grab di Vincom" -> Bot asks: "How much was the Grab ride?"
+- "Mua Spotify subscription 59k" -> Name: Spotify subscription, Amount: 59,000, Category: sub
+
+**Configuration (configs/*.yaml):**
+```yaml
+openai:
+  api_key: sk-xxxxxxxx
+  whisper_model: whisper-1  # default
+  chat_model: gpt-4o-mini   # default
+```
+
+**Architecture:**
+- `internal/repository/openai/client.go` - Whisper + ChatGPT client
+- `internal/service/voice_expense.go` - Voice processing orchestration
+- `internal/handler/expense.go` - HandleVoiceExpense(), HandleVoiceClarification()
 
 ---
 
@@ -190,6 +267,7 @@ type UserSheetMapping struct {
 | State | Description |
 |-------|-------------|
 | `expenses:add` | Waiting for expense input |
+| `expenses:voice_clarify` | Waiting for voice expense clarification |
 | `gsheets:configure` | Waiting for Google Sheets URL |
 | `gsheets:update_current_page` | Waiting for active page name |
 

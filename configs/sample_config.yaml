@@ -14,3 +14,8 @@ google_apis:
 google_sheets:
   database_spreadsheet_id: xxxxxxxxxxxT1WRIJYRQrXP33WOIfICiXBcgxxxxxxxxx
 
+openai:
+  api_key: sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  whisper_model: whisper-1
+  chat_model: gpt-4o-mini
+

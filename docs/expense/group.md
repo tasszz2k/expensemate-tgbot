@@ -6,6 +6,6 @@
 | 2 | Investment | Đầu tư | inv, dt | Stocks, crypto, savings |
 | 3 | Must Have | Thiết yếu | mh, ty | Essential spending |
 | 4 | Nice to Have | Nên chi | nth, nc | Not essential, but good to have |
-| 5 | Waste | Lãng phí | w, lp | Unnecessary spending |
+| 5 | Wasted | Lãng phí | w, lp, waste, wasted | Unnecessary spending |
 | 6 | Family | Gia đình | fam, gd | Support for family |
 | 7 | Lover | Người yêu | lov, ny | Partner spending |

@@ -18,6 +18,30 @@ type Config struct {
 	TelegramBot  TelegramBot  `yaml:"telegram_bot" validate:"required"`
 	GoogleAPIs   GoogleAPIs   `yaml:"google_apis" validate:"required"`
 	GoogleSheets GoogleSheets `yaml:"google_sheets" validate:"required"`
+	OpenAI       OpenAI       `yaml:"openai"`
+}
+
+// OpenAI configuration for Whisper and ChatGPT APIs
+type OpenAI struct {
+	APIKey       string `yaml:"api_key"`
+	WhisperModel string `yaml:"whisper_model"` // default: "whisper-1"
+	ChatModel    string `yaml:"chat_model"`    // default: "gpt-4o-mini"
+}
+
+// GetWhisperModel returns the Whisper model or default
+func (o OpenAI) GetWhisperModel() string {
+	if o.WhisperModel == "" {
+		return "whisper-1"
+	}
+	return o.WhisperModel
+}
+
+// GetChatModel returns the Chat model or default
+func (o OpenAI) GetChatModel() string {
+	if o.ChatModel == "" {
+		return "gpt-4o-mini"
+	}
+	return o.ChatModel
 }
 
 // TelegramBot configuration

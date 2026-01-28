@@ -10,6 +10,7 @@ import (
 	"expensemate-tgbot/internal/config"
 	"expensemate-tgbot/internal/handler"
 	"expensemate-tgbot/internal/log"
+	"expensemate-tgbot/internal/repository/openai"
 	"expensemate-tgbot/internal/repository/sheets"
 	"expensemate-tgbot/internal/service"
 	"expensemate-tgbot/internal/state"
@@ -68,6 +69,23 @@ func main() {
 	startHandler := handler.NewStartHandler()
 	expenseHandler := handler.NewExpenseHandler(expenseService, mappingService, stateManager)
 	gsheetsHandler := handler.NewGSheetsHandler(mappingService, stateManager)
+
+	// Initialize OpenAI client for voice expense (optional)
+	if cfg.OpenAI.APIKey != "" {
+		openaiClient, err := openai.NewClient(cfg)
+		if err != nil {
+			log.Warn("failed to create OpenAI client, voice features disabled", logrus.Fields{"error": err.Error()})
+		} else {
+			voiceExpenseService := service.NewVoiceExpenseService(openaiClient, expenseService, botAPI)
+			expenseHandler.SetVoiceExpenseService(voiceExpenseService)
+			log.Info("voice expense feature enabled", logrus.Fields{
+				"whisper_model": cfg.OpenAI.GetWhisperModel(),
+				"chat_model":    cfg.OpenAI.GetChatModel(),
+			})
+		}
+	} else {
+		log.Info("voice expense feature disabled (no OpenAI API key configured)", logrus.Fields{})
+	}
 
 	// Initialize bot
 	expensemateBot := bot.New(bot.Config{

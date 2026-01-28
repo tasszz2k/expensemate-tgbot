@@ -61,7 +61,11 @@ func FormatVND(amount types.Unsigned) string {
 // Example: "100,000 d" -> 100000
 func ReverseFormatVND(amountStr string) (types.Unsigned, error) {
 	// Remove currency symbols and separators
+	// Handle both " d" suffix and Unicode dong symbol
 	amountStr = strings.ReplaceAll(amountStr, " d", "")
+	amountStr = strings.ReplaceAll(amountStr, "d", "")
+	amountStr = strings.ReplaceAll(amountStr, " \u20ab", "") // space + dong symbol
+	amountStr = strings.ReplaceAll(amountStr, "\u20ab", "")  // dong symbol alone
 	amountStr = strings.ReplaceAll(amountStr, ",", "")
 	amountStr = strings.TrimSpace(amountStr)
 

@@ -174,3 +174,35 @@ func (r *ExpenseRepository) GetCategoryReport(ctx context.Context, spreadsheetID
 	}
 	return resp.Values, nil
 }
+
+// UpdateCategory updates only the category column for an expense
+func (r *ExpenseRepository) UpdateCategory(ctx context.Context, spreadsheetID, sheetName string, expenseID types.ID, category types.Category) error {
+	row := types.ExpensesTopRow + int(expenseID)
+	// Category is in column E (Group is D, Category is E)
+	writeRange := fmt.Sprintf("%s!E%d", sheetName, row)
+
+	log.Debug("updating expense category", logrus.Fields{
+		"spreadsheet_id": spreadsheetID,
+		"range":          writeRange,
+		"expense_id":     expenseID,
+		"category":       category,
+	})
+
+	return r.client.Update(ctx, spreadsheetID, writeRange, [][]interface{}{{string(category)}})
+}
+
+// UpdateGroup updates only the group column for an expense
+func (r *ExpenseRepository) UpdateGroup(ctx context.Context, spreadsheetID, sheetName string, expenseID types.ID, group types.Group) error {
+	row := types.ExpensesTopRow + int(expenseID)
+	// Group is in column D (Group is D, Category is E)
+	writeRange := fmt.Sprintf("%s!D%d", sheetName, row)
+
+	log.Debug("updating expense group", logrus.Fields{
+		"spreadsheet_id": spreadsheetID,
+		"range":          writeRange,
+		"expense_id":     expenseID,
+		"group":          group,
+	})
+
+	return r.client.Update(ctx, spreadsheetID, writeRange, [][]interface{}{{string(group)}})
+}

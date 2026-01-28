@@ -47,7 +47,7 @@ func New(cfg Config) *Bot {
 // Handle processes a Telegram update
 func (b *Bot) Handle(ctx context.Context, update tgbotapi.Update) error {
 	var (
-		msg    tgbotapi.MessageConfig
+		resp   handler.Response
 		err    error
 		logger *logrus.Entry
 	)
@@ -56,11 +56,13 @@ func (b *Bot) Handle(ctx context.Context, update tgbotapi.Update) error {
 	case update.Message != nil:
 		logger = log.WithMessage(update.Message)
 		log.DebugInput(logger, "message", update.Message.Text)
+		var msg tgbotapi.MessageConfig
 		msg, err = b.handleMessage(ctx, update.Message)
+		resp = handler.NewMessageResponse(msg)
 	case update.CallbackQuery != nil:
 		logger = log.WithCallback(update.CallbackQuery)
 		log.DebugInput(logger, "callback", update.CallbackQuery.Data)
-		msg, err = b.handleCallback(ctx, update.CallbackQuery)
+		resp, err = b.handleCallback(ctx, update.CallbackQuery)
 	default:
 		return nil
 	}
@@ -72,18 +74,25 @@ func (b *Bot) Handle(ctx context.Context, update tgbotapi.Update) error {
 
 	// Log output in debug mode
 	if logger != nil {
-		log.DebugOutput(logger, msg.Text)
+		log.DebugOutput(logger, resp.Text())
 	}
 
 	// Send response
-	msg.ParseMode = parseModeHTML
-	if update.Message != nil && update.Message.MessageID != 0 {
-		msg.ReplyToMessageID = update.Message.MessageID
-	}
-
-	if _, err := b.api.Send(msg); err != nil {
-		log.Error("error sending message", err, logrus.Fields{})
-		return err
+	if resp.IsEdit() {
+		resp.Edit.ParseMode = parseModeHTML
+		if _, err := b.api.Send(resp.Edit); err != nil {
+			log.Error("error editing message", err, logrus.Fields{})
+			return err
+		}
+	} else if resp.Message != nil && resp.Message.Text != "" {
+		resp.Message.ParseMode = parseModeHTML
+		if update.Message != nil && update.Message.MessageID != 0 {
+			resp.Message.ReplyToMessageID = update.Message.MessageID
+		}
+		if _, err := b.api.Send(resp.Message); err != nil {
+			log.Error("error sending message", err, logrus.Fields{})
+			return err
+		}
 	}
 
 	return nil
@@ -96,6 +105,11 @@ func (b *Bot) handleMessage(ctx context.Context, msg *tgbotapi.Message) (tgbotap
 	// Check conversation state first
 	currentState := b.stateManager.Get(chatID)
 
+	// Handle voice messages - works in any context if voice is enabled
+	if msg.Voice != nil {
+		return b.handleVoiceMessage(ctx, msg, currentState)
+	}
+
 	if msg.IsCommand() {
 		return b.handleCommand(ctx, msg)
 	}
@@ -107,6 +121,23 @@ func (b *Bot) handleMessage(ctx context.Context, msg *tgbotapi.Message) (tgbotap
 
 	// Ignore non-command messages when not in conversation
 	return tgbotapi.NewMessage(chatID, ""), nil
+}
+
+// handleVoiceMessage processes voice messages for expense input
+func (b *Bot) handleVoiceMessage(ctx context.Context, msg *tgbotapi.Message, currentState string) (tgbotapi.MessageConfig, error) {
+	logger := log.WithMessage(msg)
+	log.WithAction(logger, "voice_message").
+		WithField("duration", msg.Voice.Duration).
+		WithField("file_size", msg.Voice.FileSize).
+		Info("processing voice message")
+
+	// Check if voice is enabled
+	if !b.expenseHandler.IsVoiceEnabled() {
+		return tgbotapi.NewMessage(msg.Chat.ID, "Voice input is not available. Please use text input with /expenses_add command."), nil
+	}
+
+	// Process voice message for expense
+	return b.expenseHandler.HandleVoiceExpense(ctx, msg)
 }
 
 // handleCommand processes command messages
@@ -162,6 +193,9 @@ func (b *Bot) handleConversation(ctx context.Context, msg *tgbotapi.Message, cur
 	case state.StateExpensesAdd:
 		return b.expenseHandler.HandleExpensesAdd(ctx, msg)
 
+	case state.StateExpensesVoiceClarify:
+		return b.expenseHandler.HandleVoiceClarification(ctx, msg)
+
 	case state.StateGSheetsConfig:
 		return b.gsheetsHandler.HandleConfigure(ctx, msg)
 
@@ -175,7 +209,7 @@ func (b *Bot) handleConversation(ctx context.Context, msg *tgbotapi.Message, cur
 }
 
 // handleCallback processes callback queries
-func (b *Bot) handleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery) (tgbotapi.MessageConfig, error) {
+func (b *Bot) handleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery) (handler.Response, error) {
 	command, subCommands := types.ParseCallbackData(cb.Data)
 
 	logger := log.WithCallback(cb)
@@ -186,7 +220,8 @@ func (b *Bot) handleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery) (t
 	b.api.Request(callback)
 
 	if len(subCommands) == 0 {
-		return tgbotapi.NewMessage(cb.Message.Chat.ID, "Invalid callback data"), nil
+		msg := tgbotapi.NewMessage(cb.Message.Chat.ID, "Invalid callback data")
+		return handler.NewMessageResponse(msg), nil
 	}
 
 	action := subCommands[0]
@@ -196,10 +231,12 @@ func (b *Bot) handleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery) (t
 		return b.expenseHandler.HandleCallback(ctx, cb, action, subCommands)
 
 	case types.CommandGSheets:
-		return b.gsheetsHandler.HandleCallback(ctx, cb, action, subCommands)
+		msg, err := b.gsheetsHandler.HandleCallback(ctx, cb, action, subCommands)
+		return handler.NewMessageResponse(msg), err
 
 	default:
-		return tgbotapi.NewMessage(cb.Message.Chat.ID, "Unknown callback command"), nil
+		msg := tgbotapi.NewMessage(cb.Message.Chat.ID, "Unknown callback command")
+		return handler.NewMessageResponse(msg), nil
 	}
 }
 

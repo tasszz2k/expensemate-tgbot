@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"expensemate-tgbot/internal/log"
@@ -17,9 +18,10 @@ import (
 
 // ExpenseHandler handles expense-related commands and callbacks
 type ExpenseHandler struct {
-	expenseService *service.ExpenseService
-	mappingService *service.MappingService
-	stateManager   *state.Manager
+	expenseService      *service.ExpenseService
+	mappingService      *service.MappingService
+	voiceExpenseService *service.VoiceExpenseService
+	stateManager        *state.Manager
 }
 
 // NewExpenseHandler creates a new ExpenseHandler
@@ -33,6 +35,11 @@ func NewExpenseHandler(
 		mappingService: mappingService,
 		stateManager:   stateManager,
 	}
+}
+
+// SetVoiceExpenseService sets the voice expense service (optional, for voice support)
+func (h *ExpenseHandler) SetVoiceExpenseService(voiceService *service.VoiceExpenseService) {
+	h.voiceExpenseService = voiceService
 }
 
 // HandleExpensesCommand handles the /expenses command
@@ -82,8 +89,8 @@ func (h *ExpenseHandler) HandleExpensesAddCommand(ctx context.Context, msg *tgbo
 ---
 [expense name] <b>(*)</b>
 [amount] <b>(*)</b>
-[group] <i>(default "MUST HAVE")</i> - /expenses_help for list
-[category] <i>(default "Unclassified")</i> - /expenses_help for list
+[group] <i>(or select below)</i>
+[category] <i>(or select below)</i>
 [date] <i>(default: %s)</i>
 [note]`, timepkg.FormatDateOnly(time.Now()))
 
@@ -100,11 +107,13 @@ func (h *ExpenseHandler) HandleExpensesAdd(ctx context.Context, msg *tgbotapi.Me
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
 
-	expense, err := h.expenseService.Add(ctx, types.ID(msg.From.ID), msg.Text)
+	result, err := h.expenseService.Add(ctx, types.ID(msg.From.ID), msg.Text)
 	if err != nil {
 		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
 		return reply, nil
 	}
+
+	expense := result.Expense
 
 	// Get spreadsheet URL for link
 	spreadsheetURL, _ := h.mappingService.GetSpreadsheetURL(ctx, types.ID(msg.From.ID))
@@ -114,6 +123,16 @@ func (h *ExpenseHandler) HandleExpensesAdd(ctx context.Context, msg *tgbotapi.Me
 
 <a href="%s">View in Google Sheets</a>`, expense.FormatHTML(), spreadsheetURL)
 
+	// Only show group buttons if user didn't explicitly provide group
+	if !result.GroupProvided {
+		reply.Text += "\n\n<b>Select a group:</b>"
+		reply.ReplyMarkup = h.buildGroupKeyboard(expense.ID, !result.CategoryProvided)
+	} else if !result.CategoryProvided {
+		// Group was provided, but category wasn't - show category selection
+		reply.Text += "\n\n<b>Select a category:</b>"
+		reply.ReplyMarkup = h.buildCategoryKeyboard(expense.ID)
+	}
+
 	// Restart conversation for next expense
 	go func() {
 		time.Sleep(500 * time.Millisecond)
@@ -121,6 +140,89 @@ func (h *ExpenseHandler) HandleExpensesAdd(ctx context.Context, msg *tgbotapi.Me
 	}()
 
 	return reply, nil
+}
+
+// buildGroupKeyboard builds inline keyboard with group buttons
+// needsCategoryAfter indicates if category selection should follow group selection
+func (h *ExpenseHandler) buildGroupKeyboard(expenseID types.ID, needsCategoryAfter bool) tgbotapi.InlineKeyboardMarkup {
+	groups := types.GetAllGroups()
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	// Build rows with 2 buttons each
+	for i := 0; i < len(groups); i += 2 {
+		var row []tgbotapi.InlineKeyboardButton
+
+		// First button
+		grp1 := groups[i]
+		alias1 := types.GetGroupAlias(grp1)
+		name1 := types.GetGroupShortName(grp1)
+		// Callback format: expenses:setgrp:expense_id:group_alias:needs_category (0 or 1)
+		needsCat := "0"
+		if needsCategoryAfter {
+			needsCat = "1"
+		}
+		callback1 := fmt.Sprintf("expenses:setgrp:%d:%s:%s", expenseID, alias1, needsCat)
+		row = append(row, tgbotapi.NewInlineKeyboardButtonData(name1, callback1))
+
+		// Second button (if exists)
+		if i+1 < len(groups) {
+			grp2 := groups[i+1]
+			alias2 := types.GetGroupAlias(grp2)
+			name2 := types.GetGroupShortName(grp2)
+			callback2 := fmt.Sprintf("expenses:setgrp:%d:%s:%s", expenseID, alias2, needsCat)
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(name2, callback2))
+		}
+
+		rows = append(rows, row)
+	}
+
+	// Add Skip button - if skipping group, still ask for category if needed
+	needsCat := "0"
+	if needsCategoryAfter {
+		needsCat = "1"
+	}
+	skipCallback := fmt.Sprintf("expenses:setgrp:%d:skip:%s", expenseID, needsCat)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Skip (Keep Must Have)", skipCallback),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// buildCategoryKeyboard builds inline keyboard with category buttons
+func (h *ExpenseHandler) buildCategoryKeyboard(expenseID types.ID) tgbotapi.InlineKeyboardMarkup {
+	categories := types.GetAllCategories()
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	// Build rows with 2 buttons each
+	for i := 0; i < len(categories); i += 2 {
+		var row []tgbotapi.InlineKeyboardButton
+
+		// First button
+		cat1 := categories[i]
+		alias1 := types.GetCategoryAlias(cat1)
+		name1 := types.GetCategoryShortName(cat1)
+		callback1 := fmt.Sprintf("expenses:setcat:%d:%s", expenseID, alias1)
+		row = append(row, tgbotapi.NewInlineKeyboardButtonData(name1, callback1))
+
+		// Second button (if exists)
+		if i+1 < len(categories) {
+			cat2 := categories[i+1]
+			alias2 := types.GetCategoryAlias(cat2)
+			name2 := types.GetCategoryShortName(cat2)
+			callback2 := fmt.Sprintf("expenses:setcat:%d:%s", expenseID, alias2)
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(name2, callback2))
+		}
+
+		rows = append(rows, row)
+	}
+
+	// Add Skip button - include expense ID so we can show final record
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Skip (Keep Unclassified)", fmt.Sprintf("expenses:setcat:%d:skip", expenseID)),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
 // HandleExpensesView handles viewing recent expenses
@@ -193,56 +295,44 @@ func (h *ExpenseHandler) HandleExpensesHelp(ctx context.Context, msg *tgbotapi.M
 	log.WithAction(logger, "expenses_help").Info("showing expense help")
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
-	reply.Text = `<b>Expense Groups:</b>
-- INCOME (i) - Thu nhap
-- MUST HAVE (mh) - Chi tieu thiet yeu
-- NICE TO HAVE (nth) - Khong thiet yeu nhung nen chi
-- WASTED (w) - Lang phi
-- OTHER (o) - Khac
-
-<b>Expense Categories:</b>
-- Food (f, au) - An uong
-- Housing (h, no) - Nha o
-- Transportation (t, dl) - Di lai
-- Utilities (u, ti) - Tien ich
-- Healthcare (hc, sk) - Suc khoe
-- Entertainment (en, gt) - Giai tri
-- Education (ed, gd) - Giao duc
-- Clothing (c, qa) - Quan ao
-- Personal Care (pc, cscn) - Cham soc ca nhan
-- Miscellaneous (m, dlt) - Do linh tinh
-- Travel (tv) - Du lich
-- Other (o, k) - Khac
-- Unclassified (uc, cpl) - Chua phan loai`
-
+	reply.Text = getHelpText()
 	return reply, nil
 }
 
 // HandleCallback handles expense-related callbacks
-func (h *ExpenseHandler) HandleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, action string, subCommands []string) (tgbotapi.MessageConfig, error) {
+func (h *ExpenseHandler) HandleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, action string, subCommands []string) (Response, error) {
 	logger := log.WithCallback(cb)
 	log.WithAction(logger, "expenses_callback").WithField("callback", cb.Data).Info("processing callback")
 
 	chatID := cb.Message.Chat.ID
+	messageID := cb.Message.MessageID
 	userID := cb.From.ID // Use cb.From for the actual user who clicked
 
 	switch types.ExpenseAction(action) {
 	case types.ExpenseActionAdd:
-		return h.handleExpensesAddCallback(ctx, cb)
+		msg, err := h.handleExpensesAddCallback(ctx, cb)
+		return NewMessageResponse(msg), err
 	case types.ExpenseActionView:
 		h.stateManager.End(chatID)
-		return h.HandleExpensesView(ctx, chatID, userID)
+		msg, err := h.HandleExpensesView(ctx, chatID, userID)
+		return NewMessageResponse(msg), err
 	case types.ExpenseActionReport:
 		h.stateManager.End(chatID)
-		return h.HandleExpensesReport(ctx, chatID, userID)
+		msg, err := h.HandleExpensesReport(ctx, chatID, userID)
+		return NewMessageResponse(msg), err
 	case types.ExpenseActionHelp:
 		h.stateManager.End(chatID)
-		return h.handleExpensesHelpCallback(ctx, chatID)
+		msg, err := h.handleExpensesHelpCallback(ctx, chatID)
+		return NewMessageResponse(msg), err
+	case types.ExpenseActionSetGroup:
+		return h.handleSetGroupCallback(ctx, cb, subCommands, chatID, messageID, userID)
+	case types.ExpenseActionSetCategory:
+		return h.handleSetCategoryCallback(ctx, cb, subCommands, chatID, messageID, userID)
 	default:
 		h.stateManager.End(chatID)
 		reply := tgbotapi.NewMessage(chatID, "")
 		reply.Text = "This action is not yet implemented."
-		return reply, nil
+		return NewMessageResponse(reply), nil
 	}
 }
 
@@ -263,8 +353,8 @@ func (h *ExpenseHandler) handleExpensesAddCallback(ctx context.Context, cb *tgbo
 ---
 [expense name] <b>(*)</b>
 [amount] <b>(*)</b>
-[group] <i>(default "MUST HAVE")</i> - /expenses_help for list
-[category] <i>(default "Unclassified")</i> - /expenses_help for list
+[group] <i>(or select below)</i>
+[category] <i>(or select below)</i>
 [date] <i>(default: %s)</i>
 [note]`, timepkg.FormatDateOnly(time.Now()))
 
@@ -277,29 +367,133 @@ func (h *ExpenseHandler) handleExpensesAddCallback(ctx context.Context, cb *tgbo
 // handleExpensesHelpCallback handles help callback
 func (h *ExpenseHandler) handleExpensesHelpCallback(ctx context.Context, chatID int64) (tgbotapi.MessageConfig, error) {
 	reply := tgbotapi.NewMessage(chatID, "")
-	reply.Text = `<b>Expense Groups:</b>
-- INCOME (i) - Thu nhap
-- MUST HAVE (mh) - Chi tieu thiet yeu
-- NICE TO HAVE (nth) - Khong thiet yeu nhung nen chi
-- WASTED (w) - Lang phi
-- OTHER (o) - Khac
+	reply.Text = getHelpText()
+	return reply, nil
+}
+
+// handleSetGroupCallback handles group selection callback
+func (h *ExpenseHandler) handleSetGroupCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	// subCommands: [action, expense_id, group_alias, needs_category]
+	// action is at index 0, so we need indices 1, 2, 3
+	if len(subCommands) < 4 {
+		return NewEditResponse(chatID, messageID, "Invalid callback data"), nil
+	}
+
+	needsCategory := subCommands[3] == "1"
+
+	expenseID, err := strconv.ParseInt(subCommands[1], 10, 64)
+	if err != nil {
+		return NewEditResponse(chatID, messageID, "Invalid expense ID"), nil
+	}
+
+	// Check for skip - group stays as default
+	if subCommands[2] == "skip" {
+		if needsCategory && expenseID > 0 {
+			text := "<b>Select a category:</b>"
+			return NewEditWithKeyboardResponse(chatID, messageID, text, h.buildCategoryKeyboard(types.ID(expenseID))), nil
+		}
+		return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+	}
+
+	groupAlias := subCommands[2]
+	group, ok := types.GetGroupByAlias(groupAlias)
+	if !ok {
+		return NewEditResponse(chatID, messageID, "Invalid group"), nil
+	}
+
+	// Update group
+	if err := h.expenseService.UpdateGroup(ctx, types.ID(userID), types.ID(expenseID), group); err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	// If category still needs to be selected, show category buttons
+	if needsCategory {
+		text := "<b>Select a category:</b>"
+		return NewEditWithKeyboardResponse(chatID, messageID, text, h.buildCategoryKeyboard(types.ID(expenseID))), nil
+	}
+
+	return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+}
+
+// handleSetCategoryCallback handles category selection callback
+func (h *ExpenseHandler) handleSetCategoryCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	// subCommands: [action, expense_id, category_alias]
+	// action is at index 0, so we need indices 1, 2
+	if len(subCommands) < 3 {
+		return NewEditResponse(chatID, messageID, "Invalid callback data"), nil
+	}
+
+	expenseID, err := strconv.ParseInt(subCommands[1], 10, 64)
+	if err != nil {
+		return NewEditResponse(chatID, messageID, "Invalid expense ID"), nil
+	}
+
+	// Check for skip - category stays as default
+	if subCommands[2] == "skip" {
+		return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+	}
+
+	categoryAlias := subCommands[2]
+	category, ok := types.GetCategoryByAlias(categoryAlias)
+	if !ok {
+		return NewEditResponse(chatID, messageID, "Invalid category"), nil
+	}
+
+	// Update category
+	if err := h.expenseService.UpdateCategory(ctx, types.ID(userID), types.ID(expenseID), category); err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+}
+
+// buildFinalExpenseResponse retrieves the expense and builds the final response message
+func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, expenseID int64, chatID int64, messageID int) (Response, error) {
+	expense, err := h.expenseService.GetByID(ctx, types.ID(userID), types.ID(expenseID))
+	if err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Expense saved!</b>\nID: %d\n\n(Could not load full details: %s)", expenseID, err.Error())), nil
+	}
+	if expense == nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Expense saved!</b>\nID: %d\n\n(Expense not found)", expenseID)), nil
+	}
+
+	spreadsheetURL, _ := h.mappingService.GetSpreadsheetURL(ctx, types.ID(userID))
+	text := fmt.Sprintf("<b>Expense saved!</b>\n%s\n\n<a href=\"%s\">View in Google Sheets</a>",
+		expense.FormatHTML(), spreadsheetURL)
+	return NewEditResponse(chatID, messageID, text), nil
+}
+
+// getHelpText returns the help text with all groups and categories
+func getHelpText() string {
+	return `<b>Expense Groups:</b>
+- INCOME (i, tn) - Thu nhập
+- INVESTMENT (inv, dt) - Đầu tư
+- MUST HAVE (mh, ty) - Thiết yếu
+- NICE TO HAVE (nth, nc) - Nên chi
+- WASTE (w, lp) - Lãng phí
+- FAMILY (fam, gd) - Gia đình
+- LOVER (lov, ny) - Người yêu
 
 <b>Expense Categories:</b>
-- Food (f, au) - An uong
-- Housing (h, no) - Nha o
-- Transportation (t, dl) - Di lai
-- Utilities (u, ti) - Tien ich
-- Healthcare (hc, sk) - Suc khoe
-- Entertainment (en, gt) - Giai tri
-- Education (ed, gd) - Giao duc
-- Clothing (c, qa) - Quan ao
-- Personal Care (pc, cscn) - Cham soc ca nhan
-- Miscellaneous (m, dlt) - Do linh tinh
-- Travel (tv) - Du lich
-- Other (o, k) - Khac
-- Unclassified (uc, cpl) - Chua phan loai`
-
-	return reply, nil
+- Food (f, an, cf) - Ăn ngoài
+- Groceries (gr, dc) - Đi chợ
+- Transport (tr, dl) - Đi lại
+- Entertainment (ent, gt) - Giải trí
+- Miscellaneous (mis, lt) - Linh tinh
+- Subscription (sub, dk) - Đăng ký
+- Housing (hou, no) - Nhà ở
+- Personal Care (pc, cs) - Chăm sóc
+- Healthcare (hc, sk) - Sức khỏe
+- Clothing (clo, qa) - Quần áo
+- Education (edu, hoc) - Giáo dục
+- Tech (tech, cn) - Công nghệ
+- Travel (tv, dul) - Du lịch
+- Present (pre, qt) - Quà tặng
+- Life Events (le, hh) - Hiếu hỉ
+- Lover (lov, ny) - Người yêu
+- Family (fam, gd) - Gia đình
+- Lost Money (lm, mat) - Mất tiền
+- Unclassified (uc, cpl) - Chưa phân loại`
 }
 
 // getUnauthorizedMsg returns the unauthorized message with configure button
@@ -316,4 +510,168 @@ func (h *ExpenseHandler) getUnauthorizedMsg(msg tgbotapi.MessageConfig) tgbotapi
 // EndConversation ends the conversation for a chat
 func (h *ExpenseHandler) EndConversation(chatID int64) {
 	h.stateManager.End(chatID)
+}
+
+// HandleVoiceExpense handles voice message input for expenses
+func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	logger := log.WithMessage(msg)
+	log.WithAction(logger, "voice_expense").Info("processing voice expense")
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
+
+	// Check if voice service is enabled
+	if h.voiceExpenseService == nil || !h.voiceExpenseService.IsEnabled() {
+		reply.Text = "Voice input is not available. Please use text input."
+		return reply, nil
+	}
+
+	// Check authorization
+	mapping, err := h.mappingService.GetByUserID(ctx, types.ID(msg.From.ID))
+	if err != nil || mapping == nil {
+		return h.getUnauthorizedMsg(reply), nil
+	}
+
+	// Send processing message
+	reply.Text = "Processing voice message..."
+
+	// Process voice message
+	result, err := h.voiceExpenseService.ProcessVoiceMessage(ctx, types.ID(msg.From.ID), msg.Voice)
+	if err != nil {
+		log.Error("voice processing failed", err, log.Fields{
+			"user_id": msg.From.ID,
+			"action":  "voice_expense_error",
+		})
+		reply.Text = fmt.Sprintf("<b>Error processing voice:</b> %s\n\nPlease try again or use text input.", err.Error())
+		return reply, nil
+	}
+
+	// Handle clarification needed
+	if result.NeedsClarification {
+		// Store pending data for clarification
+		h.stateManager.SetVoicePendingData(msg.Chat.ID, &state.VoicePendingData{
+			OriginalText: result.TranscribedText,
+			ParsedName:   result.ParsedData.Name,
+			ParsedAmount: result.ParsedData.Amount,
+			ParsedGroup:  result.ParsedData.Group,
+			ParsedCat:    result.ParsedData.Category,
+			ParsedDate:   result.ParsedData.Date,
+			ParsedNote:   result.ParsedData.Note,
+		})
+		h.stateManager.Start(msg.Chat.ID, state.StateExpensesVoiceClarify)
+
+		reply.Text = fmt.Sprintf(`<b>I heard:</b> <i>"%s"</i>
+
+%s`, result.TranscribedText, result.ClarificationQuestion)
+		return reply, nil
+	}
+
+	// Handle error
+	if result.Error != nil {
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s", result.Error.Error())
+		return reply, nil
+	}
+
+	// Success - expense created
+	expense := result.Expense
+	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
+
+<b>Transcribed:</b> <i>"%s"</i>
+
+%s
+
+<a href="%s">View in Google Sheets</a>`,
+		result.TranscribedText,
+		expense.FormatHTML(),
+		result.SpreadsheetURL)
+
+	// Show group/category selection if defaults are used
+	if expense.Group == types.GroupMustHave {
+		reply.Text += "\n\n<b>Select a group:</b>"
+		reply.ReplyMarkup = h.buildGroupKeyboard(expense.ID, expense.Category == types.CategoryUnclassified)
+	} else if expense.Category == types.CategoryUnclassified {
+		reply.Text += "\n\n<b>Select a category:</b>"
+		reply.ReplyMarkup = h.buildCategoryKeyboard(expense.ID)
+	}
+
+	return reply, nil
+}
+
+// HandleVoiceClarification handles clarification response for voice expense
+func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	logger := log.WithMessage(msg)
+	log.WithAction(logger, "voice_clarification").Info("processing voice clarification")
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
+
+	// Get pending data
+	pendingData := h.stateManager.GetVoicePendingData(msg.Chat.ID)
+	if pendingData == nil {
+		h.stateManager.End(msg.Chat.ID)
+		reply.Text = "No pending voice expense. Please send a new voice message."
+		return reply, nil
+	}
+
+	// Process clarification
+	result, err := h.voiceExpenseService.ProcessClarification(ctx, types.ID(msg.From.ID), msg.Text, pendingData)
+	if err != nil {
+		log.Error("clarification processing failed", err, log.Fields{
+			"user_id": msg.From.ID,
+			"action":  "voice_clarification_error",
+		})
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s\n\nPlease try again.", err.Error())
+		return reply, nil
+	}
+
+	// Still needs clarification
+	if result.NeedsClarification {
+		// Update pending data with new parsed values
+		h.stateManager.SetVoicePendingData(msg.Chat.ID, &state.VoicePendingData{
+			OriginalText: pendingData.OriginalText + "\n" + msg.Text,
+			ParsedName:   result.ParsedData.Name,
+			ParsedAmount: result.ParsedData.Amount,
+			ParsedGroup:  result.ParsedData.Group,
+			ParsedCat:    result.ParsedData.Category,
+			ParsedDate:   result.ParsedData.Date,
+			ParsedNote:   result.ParsedData.Note,
+		})
+
+		reply.Text = result.ClarificationQuestion
+		return reply, nil
+	}
+
+	// Clear pending data and end conversation
+	h.stateManager.ClearVoicePendingData(msg.Chat.ID)
+	h.stateManager.End(msg.Chat.ID)
+
+	// Handle error
+	if result.Error != nil {
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s", result.Error.Error())
+		return reply, nil
+	}
+
+	// Success - expense created
+	expense := result.Expense
+	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
+
+%s
+
+<a href="%s">View in Google Sheets</a>`,
+		expense.FormatHTML(),
+		result.SpreadsheetURL)
+
+	// Show group/category selection if defaults are used
+	if expense.Group == types.GroupMustHave {
+		reply.Text += "\n\n<b>Select a group:</b>"
+		reply.ReplyMarkup = h.buildGroupKeyboard(expense.ID, expense.Category == types.CategoryUnclassified)
+	} else if expense.Category == types.CategoryUnclassified {
+		reply.Text += "\n\n<b>Select a category:</b>"
+		reply.ReplyMarkup = h.buildCategoryKeyboard(expense.ID)
+	}
+
+	return reply, nil
+}
+
+// IsVoiceEnabled returns true if voice expense feature is enabled
+func (h *ExpenseHandler) IsVoiceEnabled() bool {
+	return h.voiceExpenseService != nil && h.voiceExpenseService.IsEnabled()
 }

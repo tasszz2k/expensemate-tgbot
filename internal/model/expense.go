@@ -49,23 +49,30 @@ func ParseRowToExpense(row []interface{}) (Expense, error) {
 		date = time.Now()
 	}
 
-	// Column order: ID(0), Name(1), Amount(2), Category(3), Group(4), Date(5), Note(6)
+	// Column order: ID(0), Name(1), Amount(2), Group(3), Category(4), Date(5), Note(6)
 	return Expense{
 		ID:       types.ID(cast.ToInt64(row[0])),
 		Name:     cast.ToString(row[1]),
 		Amount:   amount,
-		Category: types.Category(cast.ToString(row[3])),
-		Group:    types.Group(cast.ToString(row[4])),
+		Group:    types.Group(cast.ToString(row[3])),
+		Category: types.Category(cast.ToString(row[4])),
 		Date:     date,
 		Note:     cast.ToString(row[6]),
 	}, nil
 }
 
+// ParseResult contains the parsed expense and flags indicating what was explicitly provided
+type ParseResult struct {
+	Expense          Expense
+	GroupProvided    bool // true if user explicitly provided group
+	CategoryProvided bool // true if user explicitly provided category
+}
+
 // ParseTextToExpense parses user input text into an Expense
-func ParseTextToExpense(text string) (Expense, error) {
+func ParseTextToExpense(text string) (ParseResult, error) {
 	lines := strings.Split(text, "\n")
 	if len(lines) < 2 {
-		return Expense{}, errors.New("invalid format: need at least name and amount")
+		return ParseResult{}, errors.New("invalid format: need at least name and amount")
 	}
 
 	// Pad to 6 lines
@@ -76,40 +83,41 @@ func ParseTextToExpense(text string) (Expense, error) {
 	// Parse name (required)
 	name := strings.TrimSpace(lines[0])
 	if name == "" {
-		return Expense{}, errors.New("expense name is required")
+		return ParseResult{}, errors.New("expense name is required")
 	}
 
 	// Parse amount (required)
 	amount := currency.ParseAmount(lines[1])
 	if amount == 0 {
-		return Expense{}, fmt.Errorf("invalid amount: %q", lines[1])
+		return ParseResult{}, fmt.Errorf("invalid amount: %q", lines[1])
 	}
 
 	// Parse group (optional, default: MUST HAVE)
+	// Note: Group is before Category to match spreadsheet column order (D=Group, E=Category)
 	var group types.Group
 	groupInput := strings.TrimSpace(lines[2])
-	if groupInput == "" {
+	groupProvided := groupInput != ""
+	if !groupProvided {
 		group = types.GroupMustHave
 	} else {
 		var ok bool
 		group, ok = types.GetGroupByAlias(groupInput)
 		if !ok {
-			return Expense{}, fmt.Errorf("invalid group: %q (use /expenses_help for list)", groupInput)
+			return ParseResult{}, fmt.Errorf("invalid group: %q (use /expenses_help for list)", groupInput)
 		}
 	}
 
-	// Parse category (optional, default: Unclassified for non-income)
+	// Parse category (optional, default: Unclassified)
 	var category types.Category
 	categoryInput := strings.TrimSpace(lines[3])
-	if categoryInput == "" {
-		if group != types.GroupIncome {
-			category = types.CategoryUnclassified
-		}
+	categoryProvided := categoryInput != ""
+	if !categoryProvided {
+		category = types.CategoryUnclassified
 	} else {
 		var ok bool
 		category, ok = types.GetCategoryByAlias(categoryInput)
 		if !ok {
-			return Expense{}, fmt.Errorf("invalid category: %q (use /expenses_help for list)", categoryInput)
+			return ParseResult{}, fmt.Errorf("invalid category: %q (use /expenses_help for list)", categoryInput)
 		}
 	}
 
@@ -122,13 +130,17 @@ func ParseTextToExpense(text string) (Expense, error) {
 		}
 	}
 
-	return Expense{
-		Name:     name,
-		Amount:   types.Unsigned(amount),
-		Group:    group,
-		Category: category,
-		Date:     date,
-		Note:     strings.TrimSpace(lines[5]),
+	return ParseResult{
+		Expense: Expense{
+			Name:     name,
+			Amount:   types.Unsigned(amount),
+			Group:    group,
+			Category: category,
+			Date:     date,
+			Note:     strings.TrimSpace(lines[5]),
+		},
+		GroupProvided:    groupProvided,
+		CategoryProvided: categoryProvided,
 	}, nil
 }
 
@@ -153,15 +165,15 @@ func (e Expense) FormatHTML() string {
 }
 
 // ToRow converts Expense to a Google Sheets row
-// Column order: ID, Name, Amount, Category, Group, Date, Note
+// Column order: ID, Name, Amount, Group, Category, Date, Note
 func (e Expense) ToRow() []interface{} {
 	return []interface{}{
 		e.ID, // types.ID (int64)
 		e.Name,
 		e.Amount,   // types.Unsigned (uint64) - spreadsheet formats it
-		e.Category, // types.Category
 		e.Group,    // types.Group
-		timepkg.FormatDateOnly(e.Date),
+		e.Category, // types.Category
+		timepkg.FormatDateTime(e.Date),
 		e.Note,
 	}
 }

@@ -9,6 +9,8 @@ const (
 	APIFormat = "02/01/2006 15:04:05"
 	// DateOnlyFormat is the format for date-only values
 	DateOnlyFormat = "2/1/2006"
+	// DateTimeFormat is the format for datetime values in sheets
+	DateTimeFormat = "2/1/2006 15:04"
 )
 
 // LocalLocation is the default timezone (Asia/Ho_Chi_Minh)
@@ -31,6 +33,11 @@ func FormatAPI(t time.Time) string {
 // FormatDateOnly formats time using DateOnlyFormat
 func FormatDateOnly(t time.Time) string {
 	return t.Format(DateOnlyFormat)
+}
+
+// FormatDateTime formats time using DateTimeFormat
+func FormatDateTime(t time.Time) string {
+	return t.In(LocalLocation).Format(DateTimeFormat)
 }
 
 // ParseAPILocal parses a string using APIFormat in local timezone

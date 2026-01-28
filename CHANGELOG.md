@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-01-29
+
+### Added
+- Group and category selection via inline buttons after adding expense
+- Conditional button display - only shows selection buttons if user didn't provide group/category in input
+- Voice message expense support with OpenAI Whisper transcription
+- Response wrapper for flexible message editing vs new message sending
+- `buildFinalExpenseResponse` helper for consistent expense display
+- Separate debug logging control for bot API vs application logs
+- Cursor rules for project context, Go standards, and Telegram bot patterns
+
+### Changed
+- Complete codebase refactoring following Go standards and layered architecture
+- Replaced slog with logrus for structured logging with context fields
+- Dependency injection pattern replacing global singletons
+- Message editing instead of sending new messages for group/category selection flow
+- Date column now uses datetime format (d/m/yyyy HH:mm) for automatic input
+- Expense groups updated to 7: INCOME, INVESTMENT, MUST HAVE, NICE TO HAVE, WASTED, FAMILY, LOVER
+- Renamed WASTE group to WASTED
+- Column order updated: ID, Name, Amount, Group, Category, Date, Note
+- Categories and groups now use exact Vietnamese diacritics
+
+### Fixed
+- Currency parsing for Unicode dong symbol (U+20AB)
+- Callback handler using bot ID instead of user ID
+- Callback data indexing for group/category selection
+- Expense retrieval for final response display after selection
+- Skip button now includes expense ID for proper record display
+
+## [0.2.0] - 2026-01-15
+
 ### Added
 - Local Dockerfile build for deployment instead of remote builder
 - Automatic expense add conversation continuation - users can add multiple expenses without typing `/add_expense` again
@@ -73,5 +104,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Singleton pattern for Google Sheets client
 - HTTP server with Telegram update polling
 
-[Unreleased]: https://github.com/user/expensemate-tgbot/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/user/expensemate-tgbot/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/user/expensemate-tgbot/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/user/expensemate-tgbot/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/user/expensemate-tgbot/releases/tag/v0.1.0
