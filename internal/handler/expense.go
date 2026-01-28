@@ -127,8 +127,9 @@ func (h *ExpenseHandler) HandleExpensesAdd(ctx context.Context, msg *tgbotapi.Me
 	if !result.GroupProvided {
 		reply.Text += "\n\n<b>Select a group:</b>"
 		reply.ReplyMarkup = h.buildGroupKeyboard(expense.ID, !result.CategoryProvided)
-	} else if !result.CategoryProvided {
+	} else if !result.CategoryProvided && expense.Group.NeedsCategory() {
 		// Group was provided, but category wasn't - show category selection
+		// Skip category selection for Income/Investment groups
 		reply.Text += "\n\n<b>Select a category:</b>"
 		reply.ReplyMarkup = h.buildCategoryKeyboard(expense.ID)
 	}
@@ -328,6 +329,8 @@ func (h *ExpenseHandler) HandleCallback(ctx context.Context, cb *tgbotapi.Callba
 		return h.handleSetGroupCallback(ctx, cb, subCommands, chatID, messageID, userID)
 	case types.ExpenseActionSetCategory:
 		return h.handleSetCategoryCallback(ctx, cb, subCommands, chatID, messageID, userID)
+	case types.ExpenseActionQuickDelete:
+		return h.handleQuickDeleteCallback(ctx, cb, subCommands, chatID, messageID, userID)
 	default:
 		h.stateManager.End(chatID)
 		reply := tgbotapi.NewMessage(chatID, "")
@@ -406,8 +409,9 @@ func (h *ExpenseHandler) handleSetGroupCallback(ctx context.Context, cb *tgbotap
 		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
 	}
 
-	// If category still needs to be selected, show category buttons
-	if needsCategory {
+	// If category still needs to be selected and this group type needs categories, show category buttons
+	// Income and Investment don't need category selection
+	if needsCategory && group.NeedsCategory() {
 		text := "<b>Select a category:</b>"
 		return NewEditWithKeyboardResponse(chatID, messageID, text, h.buildCategoryKeyboard(types.ID(expenseID))), nil
 	}
@@ -461,6 +465,114 @@ func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, 
 	text := fmt.Sprintf("<b>Expense saved!</b>\n%s\n\n<a href=\"%s\">View in Google Sheets</a>",
 		expense.FormatHTML(), spreadsheetURL)
 	return NewEditResponse(chatID, messageID, text), nil
+}
+
+// handleQuickDeleteCallback handles quick delete callback for voice expenses
+func (h *ExpenseHandler) handleQuickDeleteCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	// subCommands: [action, expense_id]
+	if len(subCommands) < 2 {
+		return NewEditResponse(chatID, messageID, "Invalid callback data"), nil
+	}
+
+	expenseID, err := strconv.ParseInt(subCommands[1], 10, 64)
+	if err != nil {
+		return NewEditResponse(chatID, messageID, "Invalid expense ID"), nil
+	}
+
+	// Get expense info for confirmation message
+	expense, err := h.expenseService.GetByID(ctx, types.ID(userID), types.ID(expenseID))
+	if err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	// Delete the expense
+	username := cb.From.UserName
+	if username == "" {
+		username = fmt.Sprintf("user_%d", userID)
+	}
+	if err := h.expenseService.Delete(ctx, types.ID(userID), types.ID(expenseID), "@"+username); err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error deleting:</b> %s", err.Error())), nil
+	}
+
+	text := "<b>Expense deleted!</b>"
+	if expense != nil {
+		text = fmt.Sprintf("<b>Deleted:</b> %s - %s",
+			expense.Name, currency.FormatVND(expense.Amount))
+	}
+
+	return NewEditResponse(chatID, messageID, text), nil
+}
+
+// buildVoiceExpenseKeyboard builds keyboard with group/category buttons plus delete
+func (h *ExpenseHandler) buildVoiceExpenseKeyboard(expenseID types.ID, needsGroup, needsCategory bool) tgbotapi.InlineKeyboardMarkup {
+	var rows [][]tgbotapi.InlineKeyboardButton
+
+	if needsGroup {
+		// Add group buttons (2 per row)
+		groups := types.GetAllGroups()
+		for i := 0; i < len(groups); i += 2 {
+			var row []tgbotapi.InlineKeyboardButton
+			grp1 := groups[i]
+			alias1 := types.GetGroupAlias(grp1)
+			name1 := types.GetGroupShortName(grp1)
+			needsCat := "0"
+			if needsCategory {
+				needsCat = "1"
+			}
+			callback1 := fmt.Sprintf("expenses:setgrp:%d:%s:%s", expenseID, alias1, needsCat)
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(name1, callback1))
+
+			if i+1 < len(groups) {
+				grp2 := groups[i+1]
+				alias2 := types.GetGroupAlias(grp2)
+				name2 := types.GetGroupShortName(grp2)
+				callback2 := fmt.Sprintf("expenses:setgrp:%d:%s:%s", expenseID, alias2, needsCat)
+				row = append(row, tgbotapi.NewInlineKeyboardButtonData(name2, callback2))
+			}
+			rows = append(rows, row)
+		}
+		// Skip group button
+		needsCat := "0"
+		if needsCategory {
+			needsCat = "1"
+		}
+		skipCallback := fmt.Sprintf("expenses:setgrp:%d:skip:%s", expenseID, needsCat)
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Skip Group", skipCallback),
+		))
+	} else if needsCategory {
+		// Add category buttons (2 per row)
+		categories := types.GetAllCategories()
+		for i := 0; i < len(categories); i += 2 {
+			var row []tgbotapi.InlineKeyboardButton
+			cat1 := categories[i]
+			alias1 := types.GetCategoryAlias(cat1)
+			name1 := types.GetCategoryShortName(cat1)
+			callback1 := fmt.Sprintf("expenses:setcat:%d:%s", expenseID, alias1)
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(name1, callback1))
+
+			if i+1 < len(categories) {
+				cat2 := categories[i+1]
+				alias2 := types.GetCategoryAlias(cat2)
+				name2 := types.GetCategoryShortName(cat2)
+				callback2 := fmt.Sprintf("expenses:setcat:%d:%s", expenseID, alias2)
+				row = append(row, tgbotapi.NewInlineKeyboardButtonData(name2, callback2))
+			}
+			rows = append(rows, row)
+		}
+		// Skip category button
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Skip Category", fmt.Sprintf("expenses:setcat:%d:skip", expenseID)),
+		))
+	}
+
+	// Always add delete button at the bottom
+	deleteCallback := fmt.Sprintf("expenses:qdel:%d", expenseID)
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Delete", deleteCallback),
+	))
+
+	return tgbotapi.NewInlineKeyboardMarkup(rows...)
 }
 
 // getHelpText returns the help text with all groups and categories
@@ -573,6 +685,10 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 
 	// Success - expense created
 	expense := result.Expense
+	needsGroup := expense.Group == types.GroupMustHave
+	// Only need category selection if group type requires it (not Income/Investment)
+	needsCategory := expense.Category == types.CategoryUnclassified && expense.Group.NeedsCategory()
+
 	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
 
 <b>Transcribed:</b> <i>"%s"</i>
@@ -584,14 +700,13 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 		expense.FormatHTML(),
 		result.SpreadsheetURL)
 
-	// Show group/category selection if defaults are used
-	if expense.Group == types.GroupMustHave {
+	// Show keyboard with group/category selection and delete button
+	if needsGroup {
 		reply.Text += "\n\n<b>Select a group:</b>"
-		reply.ReplyMarkup = h.buildGroupKeyboard(expense.ID, expense.Category == types.CategoryUnclassified)
-	} else if expense.Category == types.CategoryUnclassified {
+	} else if needsCategory {
 		reply.Text += "\n\n<b>Select a category:</b>"
-		reply.ReplyMarkup = h.buildCategoryKeyboard(expense.ID)
 	}
+	reply.ReplyMarkup = h.buildVoiceExpenseKeyboard(expense.ID, needsGroup, needsCategory)
 
 	return reply, nil
 }
@@ -651,6 +766,10 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 
 	// Success - expense created
 	expense := result.Expense
+	needsGroup := expense.Group == types.GroupMustHave
+	// Only need category selection if group type requires it (not Income/Investment)
+	needsCategory := expense.Category == types.CategoryUnclassified && expense.Group.NeedsCategory()
+
 	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
 
 %s
@@ -659,14 +778,13 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 		expense.FormatHTML(),
 		result.SpreadsheetURL)
 
-	// Show group/category selection if defaults are used
-	if expense.Group == types.GroupMustHave {
+	// Show keyboard with group/category selection and delete button
+	if needsGroup {
 		reply.Text += "\n\n<b>Select a group:</b>"
-		reply.ReplyMarkup = h.buildGroupKeyboard(expense.ID, expense.Category == types.CategoryUnclassified)
-	} else if expense.Category == types.CategoryUnclassified {
+	} else if needsCategory {
 		reply.Text += "\n\n<b>Select a category:</b>"
-		reply.ReplyMarkup = h.buildCategoryKeyboard(expense.ID)
 	}
+	reply.ReplyMarkup = h.buildVoiceExpenseKeyboard(expense.ID, needsGroup, needsCategory)
 
 	return reply, nil
 }

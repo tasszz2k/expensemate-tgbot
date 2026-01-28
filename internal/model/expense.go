@@ -146,22 +146,32 @@ func ParseTextToExpense(text string) (ParseResult, error) {
 
 // FormatHTML returns the expense as HTML-formatted string
 func (e Expense) FormatHTML() string {
-	return fmt.Sprintf(
+	// Base fields
+	result := fmt.Sprintf(
 		`<b>ID</b>: <i>%d</i>
 <b>Name</b>: <i>%s</i>
 <b>Amount</b>: <i>%s</i>
-<b>Group</b>: <i>%s</i>
-<b>Category</b>: <i>%s</i>
-<b>Date</b>: <i>%s</i>
-<b>Note</b>: <i>%s</i>`,
+<b>Group</b>: <i>%s</i>`,
 		e.ID,
 		e.Name,
 		currency.FormatVND(e.Amount),
 		e.Group,
-		e.Category,
+	)
+
+	// Only show category if this group type needs it (not Income/Investment Out)
+	if e.Group.NeedsCategory() {
+		result += fmt.Sprintf("\n<b>Category</b>: <i>%s</i>", e.Category)
+	}
+
+	// Add date and note
+	result += fmt.Sprintf(`
+<b>Date</b>: <i>%s</i>
+<b>Note</b>: <i>%s</i>`,
 		timepkg.FormatDateOnly(e.Date),
 		e.Note,
 	)
+
+	return result
 }
 
 // ToRow converts Expense to a Google Sheets row

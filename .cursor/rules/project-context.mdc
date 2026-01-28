@@ -177,6 +177,8 @@ type UserSheetMapping struct {
 |----------|---------|-------------|
 | Unclassified | uc, cpl | Chưa phân loại (default) |
 | Food | f, an, cf | Ăn ngoài |
+
+**Note:** Income and Investment Out groups do not require category selection (they are not expense types).
 | Groceries | gr, dc | Đi chợ |
 | Transport | tr, dl | Đi lại |
 | Entertainment | ent, gt | Giải trí |

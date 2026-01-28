@@ -10,6 +10,7 @@ const (
 	ExpenseActionView        ExpenseAction = "view"
 	ExpenseActionUpdate      ExpenseAction = "update"
 	ExpenseActionDelete      ExpenseAction = "delete"
+	ExpenseActionQuickDelete ExpenseAction = "qdel"
 	ExpenseActionReport      ExpenseAction = "report"
 	ExpenseActionHelp        ExpenseAction = "help"
 	ExpenseActionSetGroup    ExpenseAction = "setgrp"
@@ -82,6 +83,12 @@ var groupAliases = map[string]Group{
 
 func (g Group) String() string {
 	return string(g)
+}
+
+// NeedsCategory returns true if expenses in this group should have categories
+// Income and Investment Out are not expense types, so they don't need categories
+func (g Group) NeedsCategory() bool {
+	return g != GroupIncome && g != GroupInvestmentOut
 }
 
 // GetGroupByAlias returns a Group by its alias (case-insensitive)
