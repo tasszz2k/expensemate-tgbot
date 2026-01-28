@@ -68,8 +68,6 @@ func (c *Client) TranscribeAudio(ctx context.Context, audioData []byte, format s
 const systemPrompt = `You are an expense parser. Parse the user's voice transcription into expense data.
 
 Available Groups (use the alias in lowercase for output):
-- INCOME (alias: i) - Thu nhap
-- INVESTMENT (alias: inv) - Dau tu
 - MUST HAVE (alias: mh) - Thiet yeu (DEFAULT if not specified)
 - NICE TO HAVE (alias: nth) - Nen chi
 - WASTE (alias: w) - Lang phi
@@ -95,7 +93,6 @@ Available Categories (use the alias in lowercase for output):
 - Life Events (alias: le) - Hieu hi, dam cuoi, tang le
 - Lover (alias: lov) - Nguoi yeu
 - Family (alias: fam) - Gia dinh
-- Lost Money (alias: lm) - Mat tien
 
 IMPORTANT RULES:
 1. Extract the expense name - clean it up but keep the meaning

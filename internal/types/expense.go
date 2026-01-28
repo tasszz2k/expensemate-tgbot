@@ -24,13 +24,13 @@ func (a ExpenseAction) String() string {
 type Group string
 
 const (
-	GroupIncome     Group = "INCOME"
-	GroupInvestment Group = "INVESTMENT"
-	GroupMustHave   Group = "MUST HAVE"
-	GroupNiceToHave Group = "NICE TO HAVE"
-	GroupWaste      Group = "WASTED"
-	GroupFamily     Group = "FAMILY"
-	GroupLover      Group = "LOVER"
+	GroupIncome        Group = "INCOME"
+	GroupInvestmentOut Group = "INVESTMENT OUT"
+	GroupMustHave      Group = "MUST HAVE"
+	GroupNiceToHave    Group = "NICE TO HAVE"
+	GroupWaste         Group = "WASTED"
+	GroupFamily        Group = "FAMILY"
+	GroupLover         Group = "LOVER"
 )
 
 var groupAliases = map[string]Group{
@@ -40,11 +40,13 @@ var groupAliases = map[string]Group{
 	"i":        GroupIncome,
 	"tn":       GroupIncome,
 
-	"investment": GroupInvestment,
-	"đầu tư":     GroupInvestment,
-	"dau tu":     GroupInvestment,
-	"inv":        GroupInvestment,
-	"dt":         GroupInvestment,
+	"investment out": GroupInvestmentOut,
+	"investment":     GroupInvestmentOut,
+	"chi đầu tư":     GroupInvestmentOut,
+	"chi dau tu":     GroupInvestmentOut,
+	"inv":            GroupInvestmentOut,
+	"dt":             GroupInvestmentOut,
+	"io":             GroupInvestmentOut,
 
 	"must have": GroupMustHave,
 	"thiết yếu": GroupMustHave,
@@ -97,7 +99,7 @@ var allGroups = []Group{
 	GroupNiceToHave,
 	GroupWaste,
 	GroupIncome,
-	GroupInvestment,
+	GroupInvestmentOut,
 	GroupFamily,
 	GroupLover,
 }
@@ -109,24 +111,24 @@ func GetAllGroups() []Group {
 
 // groupShortNames maps groups to short display names for buttons
 var groupShortNames = map[Group]string{
-	GroupIncome:     "Income",
-	GroupInvestment: "Investment",
-	GroupMustHave:   "Must Have",
-	GroupNiceToHave: "Nice to Have",
-	GroupWaste:      "Waste",
-	GroupFamily:     "Family",
-	GroupLover:      "Lover",
+	GroupIncome:        "Income",
+	GroupInvestmentOut: "Invest Out",
+	GroupMustHave:      "Must Have",
+	GroupNiceToHave:    "Nice to Have",
+	GroupWaste:         "Waste",
+	GroupFamily:        "Family",
+	GroupLover:         "Lover",
 }
 
 // groupAliasForCallback maps groups to their short alias for callbacks
 var groupAliasForCallback = map[Group]string{
-	GroupIncome:     "i",
-	GroupInvestment: "inv",
-	GroupMustHave:   "mh",
-	GroupNiceToHave: "nth",
-	GroupWaste:      "w",
-	GroupFamily:     "fam",
-	GroupLover:      "lov",
+	GroupIncome:        "i",
+	GroupInvestmentOut: "io",
+	GroupMustHave:      "mh",
+	GroupNiceToHave:    "nth",
+	GroupWaste:         "w",
+	GroupFamily:        "fam",
+	GroupLover:         "lov",
 }
 
 // GetGroupShortName returns a short display name for a group
