@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-01-29
+
+### Added
+- Voice input expense feature using OpenAI Whisper (speech-to-text) and ChatGPT (natural language parsing)
+- Voice messages can be sent in any context to add expenses
+- Clarification flow for ambiguous voice inputs (e.g., missing amount)
+- Quick delete button for voice expenses - allows immediate deletion if parsing was incorrect
+- `NeedsCategory()` method on Group type to determine if category selection is needed
+- OpenAI configuration section in config (api_key, whisper_model, chat_model)
+- `ExpenseActionQuickDelete` action for instant expense deletion
+
+### Changed
+- Renamed "Dining" category to "Food" with aliases: f, an, cf
+- Income and Investment Out groups no longer show category selection (not expense types)
+- Category field hidden in expense display for Income/Investment Out groups
+- Voice expense keyboard includes group/category buttons plus delete button
+
+### Technical
+- Added `internal/repository/openai/client.go` - OpenAI Whisper + ChatGPT client
+- Added `internal/service/voice_expense.go` - Voice processing orchestration
+- Added voice clarification conversation state `expenses:voice_clarify`
+- Added `VoicePendingData` struct for storing pending voice expense during clarification
+
 ## [0.3.0] - 2026-01-29
 
 ### Added
@@ -104,7 +127,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Singleton pattern for Google Sheets client
 - HTTP server with Telegram update polling
 
-[Unreleased]: https://github.com/user/expensemate-tgbot/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/user/expensemate-tgbot/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/user/expensemate-tgbot/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/user/expensemate-tgbot/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/user/expensemate-tgbot/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/user/expensemate-tgbot/releases/tag/v0.1.0

@@ -177,12 +177,18 @@ func (e Expense) FormatHTML() string {
 // ToRow converts Expense to a Google Sheets row
 // Column order: ID, Name, Amount, Group, Category, Date, Note
 func (e Expense) ToRow() []interface{} {
+	// Leave category empty for Income/Investment Out groups
+	var category interface{} = e.Category
+	if !e.Group.NeedsCategory() {
+		category = ""
+	}
+
 	return []interface{}{
 		e.ID, // types.ID (int64)
 		e.Name,
-		e.Amount,   // types.Unsigned (uint64) - spreadsheet formats it
-		e.Group,    // types.Group
-		e.Category, // types.Category
+		e.Amount, // types.Unsigned (uint64) - spreadsheet formats it
+		e.Group,  // types.Group
+		category, // types.Category or empty string
 		timepkg.FormatDateTime(e.Date),
 		e.Note,
 	}
