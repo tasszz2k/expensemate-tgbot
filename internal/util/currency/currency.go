@@ -53,7 +53,7 @@ func FormatVND(amount types.Unsigned) string {
 		result.WriteRune(char)
 	}
 
-	result.WriteString(" d")
+	result.WriteString(" ₫")
 	return result.String()
 }
 
@@ -64,8 +64,8 @@ func ReverseFormatVND(amountStr string) (types.Unsigned, error) {
 	// Handle both " d" suffix and Unicode dong symbol
 	amountStr = strings.ReplaceAll(amountStr, " d", "")
 	amountStr = strings.ReplaceAll(amountStr, "d", "")
-	amountStr = strings.ReplaceAll(amountStr, " \u20ab", "") // space + dong symbol
-	amountStr = strings.ReplaceAll(amountStr, "\u20ab", "")  // dong symbol alone
+	amountStr = strings.ReplaceAll(amountStr, " ₫", "") // space + dong symbol
+	amountStr = strings.ReplaceAll(amountStr, "₫", "")  // dong symbol alone
 	amountStr = strings.ReplaceAll(amountStr, ",", "")
 	amountStr = strings.TrimSpace(amountStr)
 
