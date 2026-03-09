@@ -45,9 +45,9 @@ func ParseAPILocal(input string) (time.Time, error) {
 	return time.ParseInLocation(APIFormat, input, LocalLocation)
 }
 
-// ParseDateOnly parses a string using DateOnlyFormat
+// ParseDateOnly parses a string using DateOnlyFormat in local timezone
 func ParseDateOnly(input string) (time.Time, error) {
-	return time.Parse(DateOnlyFormat, input)
+	return time.ParseInLocation(DateOnlyFormat, input, LocalLocation)
 }
 
 // GetCurrentDay returns today's date at midnight

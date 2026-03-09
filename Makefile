@@ -1,3 +1,6 @@
+run-prod:
+	CONFIG_PATH=configs/prod.yaml go run cmd/bot/main.go
+
 lint:
 	golangci-lint run --fast -v
 

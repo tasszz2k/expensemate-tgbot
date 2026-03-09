@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Voice expense date bug - OpenAI hallucinated dates (e.g., 4/10/2023) because the prompt didn't include today's date; now injects current date into user message
+- All date parsing/formatting now uses Asia/Ho_Chi_Minh timezone consistently instead of UTC, preventing date shifts near midnight
+
+### Changed
+- Expanded Whisper vocabulary prompt from food-only to all expense categories (tech, personal care, housing, transport, investments, events)
+- Expanded ChatGPT system prompt with comprehensive Vietnamese speech-to-text corrections across all categories
+- Category selection buttons now show bilingual labels (e.g., "Food / Ăn ngoài", "Housing / Nhà ở")
+- Added `run-prod` target to Makefile for local development with config file
+
 ## [1.1.0] - 2026-01-29
 
 ### Added

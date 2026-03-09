@@ -157,31 +157,16 @@ func (h *GSheetsHandler) HandleUpdateActivePageCallback(ctx context.Context, cb 
 		return reply, nil
 	}
 
-	// Show available sheets
-	sheetNames, err := h.mappingService.GetValidSheetNames(ctx, types.ID(cb.From.ID))
-	if err != nil {
-		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
-		return reply, nil
-	}
-
-	if len(sheetNames) == 0 {
-		// Suggest current month format
-		currentMonth := time.Now().Format("2006_01")
-		reply.Text = fmt.Sprintf("No sheets found with YYYY_MM format.\nEnter a page name (e.g., %s):", currentMonth)
-		h.stateManager.Start(cb.Message.Chat.ID, state.StateGSheetsUpdateActivePage)
-		return reply, nil
-	}
-
-	// Build keyboard with available sheets
-	var rows [][]tgbotapi.InlineKeyboardButton
-	for _, name := range sheetNames {
-		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(name, fmt.Sprintf("gsheets:update_current_page:%s", name)),
-		))
-	}
-
-	reply.Text = "Select the active page:"
-	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(rows...)
+	currentMonth := time.Now().Format("2006_01")
+	reply.Text = fmt.Sprintf("Set active page to: <b>%s</b>?", currentMonth)
+	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Confirm", fmt.Sprintf("gsheets:update_current_page:%s", currentMonth)),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Enter Manually", "gsheets:update_current_page_manual"),
+		),
+	)
 
 	return reply, nil
 }
@@ -206,6 +191,20 @@ func (h *GSheetsHandler) HandleUpdateActivePage(ctx context.Context, msg *tgbota
 	return reply, nil
 }
 
+// HandleManualPageInputCallback prompts the user to type a page name manually
+func (h *GSheetsHandler) HandleManualPageInputCallback(ctx context.Context, cb *tgbotapi.CallbackQuery) (tgbotapi.MessageConfig, error) {
+	logger := log.WithCallback(cb)
+	log.WithAction(logger, "gsheets_update_page_manual").Info("starting manual page input")
+
+	reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")
+
+	currentMonth := time.Now().Format("2006_01")
+	reply.Text = fmt.Sprintf("Enter a page name (e.g., <b>%s</b>):", currentMonth)
+	h.stateManager.Start(cb.Message.Chat.ID, state.StateGSheetsUpdateActivePage)
+
+	return reply, nil
+}
+
 // HandleCallback handles gsheets-related callbacks
 func (h *GSheetsHandler) HandleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, action string, subCommands []string) (tgbotapi.MessageConfig, error) {
 	logger := log.WithCallback(cb)
@@ -218,6 +217,8 @@ func (h *GSheetsHandler) HandleCallback(ctx context.Context, cb *tgbotapi.Callba
 		return h.HandleHelpCallback(ctx, cb)
 	case types.GSheetsActionUpdateActivePage:
 		return h.HandleUpdateActivePageCallback(ctx, cb, subCommands)
+	case types.GSheetsActionUpdateActivePageManual:
+		return h.HandleManualPageInputCallback(ctx, cb)
 	default:
 		h.stateManager.End(cb.Message.Chat.ID)
 		reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")

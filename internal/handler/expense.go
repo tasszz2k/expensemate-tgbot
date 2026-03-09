@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"expensemate-tgbot/internal/log"
@@ -383,6 +384,7 @@ func (h *ExpenseHandler) handleSetGroupCallback(ctx context.Context, cb *tgbotap
 	}
 
 	needsCategory := subCommands[3] == "1"
+	transcription := extractTranscription(cb.Message.Text)
 
 	expenseID, err := strconv.ParseInt(subCommands[1], 10, 64)
 	if err != nil {
@@ -392,10 +394,10 @@ func (h *ExpenseHandler) handleSetGroupCallback(ctx context.Context, cb *tgbotap
 	// Check for skip - group stays as default
 	if subCommands[2] == "skip" {
 		if needsCategory && expenseID > 0 {
-			text := "<b>Select a category:</b>"
+			text := formatTranscriptionHTML(transcription) + "<b>Select a category:</b>"
 			return NewEditWithKeyboardResponse(chatID, messageID, text, h.buildCategoryKeyboard(types.ID(expenseID))), nil
 		}
-		return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+		return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID, transcription)
 	}
 
 	groupAlias := subCommands[2]
@@ -412,11 +414,11 @@ func (h *ExpenseHandler) handleSetGroupCallback(ctx context.Context, cb *tgbotap
 	// If category still needs to be selected and this group type needs categories, show category buttons
 	// Income and Investment don't need category selection
 	if needsCategory && group.NeedsCategory() {
-		text := "<b>Select a category:</b>"
+		text := formatTranscriptionHTML(transcription) + "<b>Select a category:</b>"
 		return NewEditWithKeyboardResponse(chatID, messageID, text, h.buildCategoryKeyboard(types.ID(expenseID))), nil
 	}
 
-	return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+	return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID, transcription)
 }
 
 // handleSetCategoryCallback handles category selection callback
@@ -427,6 +429,8 @@ func (h *ExpenseHandler) handleSetCategoryCallback(ctx context.Context, cb *tgbo
 		return NewEditResponse(chatID, messageID, "Invalid callback data"), nil
 	}
 
+	transcription := extractTranscription(cb.Message.Text)
+
 	expenseID, err := strconv.ParseInt(subCommands[1], 10, 64)
 	if err != nil {
 		return NewEditResponse(chatID, messageID, "Invalid expense ID"), nil
@@ -434,7 +438,7 @@ func (h *ExpenseHandler) handleSetCategoryCallback(ctx context.Context, cb *tgbo
 
 	// Check for skip - category stays as default
 	if subCommands[2] == "skip" {
-		return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+		return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID, transcription)
 	}
 
 	categoryAlias := subCommands[2]
@@ -448,11 +452,12 @@ func (h *ExpenseHandler) handleSetCategoryCallback(ctx context.Context, cb *tgbo
 		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
 	}
 
-	return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID)
+	return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID, transcription)
 }
 
-// buildFinalExpenseResponse retrieves the expense and builds the final response message
-func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, expenseID int64, chatID int64, messageID int) (Response, error) {
+// buildFinalExpenseResponse retrieves the expense and builds the final response message.
+// transcription is included in the response when non-empty (voice expenses).
+func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, expenseID int64, chatID int64, messageID int, transcription string) (Response, error) {
 	expense, err := h.expenseService.GetByID(ctx, types.ID(userID), types.ID(expenseID))
 	if err != nil {
 		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Expense saved!</b>\nID: %d\n\n(Could not load full details: %s)", expenseID, err.Error())), nil
@@ -462,8 +467,8 @@ func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, 
 	}
 
 	spreadsheetURL, _ := h.mappingService.GetSpreadsheetURL(ctx, types.ID(userID))
-	text := fmt.Sprintf("<b>Expense saved!</b>\n%s\n\n<a href=\"%s\">View in Google Sheets</a>",
-		expense.FormatHTML(), spreadsheetURL)
+	text := fmt.Sprintf("<b>Expense saved!</b>\n%s%s\n\n<a href=\"%s\">View in Google Sheets</a>",
+		formatTranscriptionHTML(transcription), expense.FormatHTML(), spreadsheetURL)
 	return NewEditResponse(chatID, messageID, text), nil
 }
 
@@ -573,6 +578,30 @@ func (h *ExpenseHandler) buildVoiceExpenseKeyboard(expenseID types.ID, needsGrou
 	))
 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
+}
+
+// extractTranscription extracts the transcribed text from a voice expense message.
+// Returns the transcription formatted as HTML, or empty string if not found.
+func extractTranscription(messageText string) string {
+	const prefix = "Transcribed: \""
+	startIdx := strings.Index(messageText, prefix)
+	if startIdx == -1 {
+		return ""
+	}
+	startIdx += len(prefix)
+	endIdx := strings.Index(messageText[startIdx:], "\"")
+	if endIdx == -1 {
+		return ""
+	}
+	return messageText[startIdx : startIdx+endIdx]
+}
+
+// formatTranscriptionHTML wraps transcription text in HTML for message display.
+func formatTranscriptionHTML(transcription string) string {
+	if transcription == "" {
+		return ""
+	}
+	return fmt.Sprintf("<b>Transcribed:</b> <i>\"%s\"</i>\n\n", transcription)
 }
 
 // getHelpText returns the help text with all groups and categories
@@ -686,8 +715,9 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 	// Success - expense created
 	expense := result.Expense
 	needsGroup := expense.Group == types.GroupMustHave
-	// Only need category selection if group type requires it (not Income/Investment)
-	needsCategory := expense.Category == types.CategoryUnclassified && expense.Group.NeedsCategory()
+	// Always allow category selection for voice expenses since ChatGPT infers
+	// the category from context, and the user should be able to confirm or change it
+	needsCategory := expense.Group.NeedsCategory()
 
 	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
 
@@ -767,8 +797,9 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 	// Success - expense created
 	expense := result.Expense
 	needsGroup := expense.Group == types.GroupMustHave
-	// Only need category selection if group type requires it (not Income/Investment)
-	needsCategory := expense.Category == types.CategoryUnclassified && expense.Group.NeedsCategory()
+	// Always allow category selection for voice expenses since ChatGPT infers
+	// the category from context, and the user should be able to confirm or change it
+	needsCategory := expense.Group.NeedsCategory()
 
 	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
 

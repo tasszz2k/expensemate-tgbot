@@ -211,7 +211,7 @@ When an expense is added without category/group, the bot shows inline keyboard b
 5. User selects category (or skips)
 6. Bot edits message to show final expense record
 
-**Date format:** Uses datetime format (d/m/yyyy HH:mm) when auto-generated
+**Date format:** Uses datetime format (d/m/yyyy HH:mm) when auto-generated. All date parsing uses `time.ParseInLocation` with Asia/Ho_Chi_Minh timezone. Use `timepkg.Now()` instead of `time.Now()` for timezone-aware current time.
 
 **Callback formats:**
 - Group: `expenses:setgrp:{expense_id}:{group_alias}:{needs_category_flag}`
@@ -249,12 +249,14 @@ The bot supports voice input for adding expenses using OpenAI Whisper and ChatGP
 - "Grab di Vincom" -> Bot asks: "How much was the Grab ride?"
 - "Mua Spotify subscription 59k" -> Name: Spotify subscription, Amount: 59,000, Category: sub
 
+**Voice parsing:** Today's date is injected into the ChatGPT user message (`"Today is YYYY-MM-DD"`) to prevent date hallucination. The Whisper prompt includes broad Vietnamese expense vocabulary (food, transport, tech, personal care, housing, etc.).
+
 **Configuration (configs/*.yaml):**
 ```yaml
 openai:
   api_key: sk-xxxxxxxx
-  whisper_model: whisper-1  # default
-  chat_model: gpt-4o-mini   # default
+  whisper_model: gpt-4o-transcribe  # or whisper-1
+  chat_model: gpt-4o-mini           # default
 ```
 
 **Architecture:**

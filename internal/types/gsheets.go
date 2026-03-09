@@ -9,9 +9,10 @@ import (
 type GSheetsAction string
 
 const (
-	GSheetsActionConfigure        GSheetsAction = "configure"
-	GSheetsActionHelp             GSheetsAction = "help"
-	GSheetsActionUpdateActivePage GSheetsAction = "update_current_page"
+	GSheetsActionConfigure              GSheetsAction = "configure"
+	GSheetsActionHelp                   GSheetsAction = "help"
+	GSheetsActionUpdateActivePage       GSheetsAction = "update_current_page"
+	GSheetsActionUpdateActivePageManual GSheetsAction = "update_current_page_manual"
 )
 
 func (a GSheetsAction) String() string {

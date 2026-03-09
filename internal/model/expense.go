@@ -46,7 +46,7 @@ func ParseRowToExpense(row []interface{}) (Expense, error) {
 
 	date, err := timepkg.ParseDateOnly(cast.ToString(row[5]))
 	if err != nil {
-		date = time.Now()
+		date = timepkg.Now()
 	}
 
 	// Column order: ID(0), Name(1), Amount(2), Group(3), Category(4), Date(5), Note(6)
@@ -121,10 +121,10 @@ func ParseTextToExpense(text string) (ParseResult, error) {
 		}
 	}
 
-	// Parse date (optional, default: today)
-	date := time.Now()
+	// Parse date (optional, default: today in local timezone)
+	date := timepkg.Now()
 	if lines[4] != "" {
-		parsed, err := time.Parse(timepkg.DateOnlyFormat, lines[4])
+		parsed, err := time.ParseInLocation(timepkg.DateOnlyFormat, lines[4], timepkg.LocalLocation)
 		if err == nil {
 			date = parsed
 		}
