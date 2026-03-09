@@ -43,7 +43,7 @@ const (
 	ExpensesRightCol   = "G"
 
 	ExpensesReportRange   = "I3:J9"
-	ExpensesCategoryRange = "L3:N15"
+	ExpensesCategoryRange = "L3:N21"
 
 	// New month sheet creation
 	ExpenseDataStartRow    = 10

@@ -136,7 +136,7 @@ DatabaseActivePageCell = "B2"
 ExpensesNextIDCell     = "B2"
 ExpensesTopRow         = 3
 ExpensesReportRange    = "I3:J9"
-ExpensesCategoryRange  = "L3:N15"
+ExpensesCategoryRange  = "L3:N21"
 
 // New month sheet creation
 ExpenseDataStartRow    = 10
