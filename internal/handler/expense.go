@@ -877,6 +877,87 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 	return reply, nil
 }
 
+// reportEmojiByName maps group/category names to their emoji for report display.
+var reportEmojiByName = map[string]string{
+	// Groups
+	"INCOME":            "💰",
+	"INVESTMENT OUT":    "📈",
+	"INVESTMENT PROFIT": "📈",
+	"MUST HAVE":         "🔒",
+	"NICE TO HAVE":      "✨",
+	"WASTED":            "🗑",
+	"FAMILY":            "👨‍👩‍👧‍👦",
+	"LOVER":             "❤️",
+	// Categories
+	"Unclassified / Chưa phân loại": "📋",
+	"Food / Ăn ngoài":               "🍜",
+	"Groceries / Đi chợ":            "🛒",
+	"Transport / Đi lại":            "🚗",
+	"Entertainment / Giải trí":      "🎮",
+	"Miscellaneous / Linh tinh":     "📦",
+	"Subscription / Đăng ký":        "🔄",
+	"Housing / Nhà ở":               "🏠",
+	"Personal Care / Chăm sóc":      "💆",
+	"Healthcare / Sức khỏe":         "🏥",
+	"Clothing / Quần áo":            "👕",
+	"Education / Giáo dục":          "📚",
+	"Tech / Công nghệ":              "💻",
+	"Travel / Du lịch":              "✈️",
+	"Present / Quà tặng":            "🎁",
+	"Life Events / Hiếu hỉ":        "🎊",
+	"Lover / Người yêu":             "❤️",
+	"Family / Gia đình":             "👨‍👩‍👧‍👦",
+	"Lost Money / Mất tiền":         "💸",
+}
+
+// sortedReportLines builds sorted report lines: 🔴 over → ✅/active → ⬜ empty.
+// noBudgetIcon is the emoji used for entries without a budget (e.g. "🔸" for groups).
+func sortedReportLines(entries []model.BudgetEntry, noBudgetIcon string) string {
+	var over, active, empty, noBudget []string
+
+	for _, e := range entries {
+		icon := reportEmojiByName[e.Name]
+		if e.HasBudget {
+			line := e.FormatBudgetLine()
+			// Prepend category/group emoji after status icon
+			if icon != "" {
+				line = addEmojiAfterStatus(line, icon)
+			}
+			if e.Remaining < 0 {
+				over = append(over, "  "+line)
+			} else if e.Spent > 0 {
+				active = append(active, "  "+line)
+			} else {
+				empty = append(empty, "  "+line)
+			}
+		} else if e.Spent != 0 {
+			if icon == "" {
+				icon = noBudgetIcon
+			}
+			noBudget = append(noBudget, fmt.Sprintf("  %s %s: <b>%s</b>",
+				icon, e.Name, currency.FormatVND(types.Unsigned(abs64(e.Spent)))))
+		}
+	}
+
+	var result string
+	for _, lines := range [][]string{over, active, noBudget, empty} {
+		for _, line := range lines {
+			result += line + "\n"
+		}
+	}
+	return result
+}
+
+// addEmojiAfterStatus inserts a category/group emoji after the status icon (✅/🔴/⬜).
+// Input:  "✅ MUST HAVE: ..." → "✅🔒 MUST HAVE: ..."
+func addEmojiAfterStatus(line, emoji string) string {
+	// Status icons are always at the start, followed by a space
+	if idx := strings.Index(line, " "); idx > 0 {
+		return line[:idx] + emoji + line[idx:]
+	}
+	return emoji + " " + line
+}
+
 // isNonZeroAmount checks if an amount string represents a non-zero value.
 func isNonZeroAmount(amount string) bool {
 	for _, c := range amount {
