@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Auto-create monthly sheet via `/gsheets` > "Create New Month" button
+  - Duplicates current sheet with next month name (handles year rollover, e.g. 2025_12 -> 2026_01)
+  - Clears salary (C4), expense data (rows 10+), and investment notes (AB16:AB30)
+  - Snapshots current asset values (P2:Q9) to last month section (P17:Q24)
+  - Updates investment formulas (C5:C9) to reference the correct previous month
+  - Resets next expense ID to 10 and sets new sheet as active page
+  - Two-step confirmation flow to prevent accidental creation
+- Active page name shown in `/gsheets` menu alongside spreadsheet URL
+- Google Sheets API methods: BatchUpdate, ClearValues, GetFormulas, GetUnformatted, GetSheetID, UpdateUserEntered
+- Month name helpers (`NextMonthName`, `PrevMonthName`) with year boundary rollover
+
 ### Fixed
 - Voice expense date bug - OpenAI hallucinated dates (e.g., 4/10/2023) because the prompt didn't include today's date; now injects current date into user message
 - All date parsing/formatting now uses Asia/Ho_Chi_Minh timezone consistently instead of UTC, preventing date shifts near midnight

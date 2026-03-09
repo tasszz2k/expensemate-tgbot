@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -151,6 +152,65 @@ func (s *MappingService) GetValidSheetNames(ctx context.Context, userID types.ID
 
 	spreadsheetID := mapping.SpreadsheetDocID()
 	return s.repo.GetValidSheetNames(ctx, spreadsheetID)
+}
+
+// GetActivePage returns the current active page name for a user's spreadsheet
+func (s *MappingService) GetActivePage(ctx context.Context, userID types.ID) (string, error) {
+	mapping, err := s.GetByUserID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if mapping == nil {
+		return "", fmt.Errorf("no spreadsheet configured for user %d", userID)
+	}
+	return s.repo.GetActivePage(ctx, mapping.SpreadsheetDocID())
+}
+
+// CreateNewMonthSheet creates a new monthly sheet from the current active page
+func (s *MappingService) CreateNewMonthSheet(ctx context.Context, userID types.ID) (string, error) {
+	mapping, err := s.GetByUserID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if mapping == nil {
+		return "", fmt.Errorf("no spreadsheet configured for user %d", userID)
+	}
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+
+	currentPage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return "", fmt.Errorf("reading active page: %w", err)
+	}
+	if !types.IsValidSheetName(currentPage) {
+		return "", fmt.Errorf("current active page %q is not a valid YYYY_MM format", currentPage)
+	}
+
+	newSheet, err := types.NextMonthName(currentPage)
+	if err != nil {
+		return "", fmt.Errorf("calculating next month: %w", err)
+	}
+
+	existingSheets, err := s.repo.GetValidSheetNames(ctx, spreadsheetID)
+	if err != nil {
+		return "", fmt.Errorf("checking existing sheets: %w", err)
+	}
+	if slices.Contains(existingSheets, newSheet) {
+		return "", fmt.Errorf("sheet %q already exists", newSheet)
+	}
+
+	if err := s.repo.CreateNewMonthSheet(ctx, spreadsheetID, currentPage, newSheet); err != nil {
+		return "", fmt.Errorf("creating new month sheet: %w", err)
+	}
+
+	log.Info("new month sheet created", logrus.Fields{
+		"user_id":  userID,
+		"from":     currentPage,
+		"to":       newSheet,
+		"action":   "gsheets_create_new_month",
+	})
+
+	return newSheet, nil
 }
 
 // GetSpreadsheetURL returns the spreadsheet URL for a user

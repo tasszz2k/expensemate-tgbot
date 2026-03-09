@@ -3,6 +3,7 @@ package sheets
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"expensemate-tgbot/internal/log"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cast"
+	"google.golang.org/api/sheets/v4"
 )
 
 // MappingRepository handles user-spreadsheet mappings in Google Sheets
@@ -183,6 +185,126 @@ func parseRowToMapping(row []interface{}) model.UserSheetMapping {
 func (r *MappingRepository) UpdateActivePage(ctx context.Context, spreadsheetID, pageName string) error {
 	cell := types.BuildCell(types.DatabaseSheetName, types.DatabaseActivePageCell)
 	return r.client.Update(ctx, spreadsheetID, cell, [][]interface{}{{pageName}})
+}
+
+// GetActivePage reads the active page name from Database!B2
+func (r *MappingRepository) GetActivePage(ctx context.Context, spreadsheetID string) (string, error) {
+	cell := types.BuildCell(types.DatabaseSheetName, types.DatabaseActivePageCell)
+	return r.client.GetValue(ctx, spreadsheetID, cell)
+}
+
+// CreateNewMonthSheet duplicates the current sheet, clears expense data, updates formulas, and sets the active page
+func (r *MappingRepository) CreateNewMonthSheet(ctx context.Context, spreadsheetID, currentSheet, newSheet string) error {
+	// The formulas in currentSheet reference (currentSheet - 1).
+	// In the new sheet, they should reference currentSheet instead.
+	prevOfCurrent, err := types.PrevMonthName(currentSheet)
+	if err != nil {
+		return fmt.Errorf("calculating previous month: %w", err)
+	}
+
+	// 1. Get sheet ID of currentSheet
+	sheetID, err := r.client.GetSheetID(ctx, spreadsheetID, currentSheet)
+	if err != nil {
+		return fmt.Errorf("getting sheet ID for %s: %w", currentSheet, err)
+	}
+
+	log.Info("creating new month sheet", logrus.Fields{
+		"current": currentSheet,
+		"new":     newSheet,
+	})
+
+	// 2. Duplicate sheet
+	dupReq := &sheets.Request{
+		DuplicateSheet: &sheets.DuplicateSheetRequest{
+			SourceSheetId: sheetID,
+			NewSheetName:  newSheet,
+		},
+	}
+	if _, err := r.client.BatchUpdate(ctx, spreadsheetID, []*sheets.Request{dupReq}); err != nil {
+		return fmt.Errorf("duplicating sheet: %w", err)
+	}
+
+	// 3. Update A1 with new sheet name
+	a1Cell := types.BuildCell(newSheet, types.SheetNameCell)
+	if err := r.client.Update(ctx, spreadsheetID, a1Cell, [][]interface{}{{newSheet}}); err != nil {
+		return fmt.Errorf("updating A1: %w", err)
+	}
+
+	// 4. Read current asset values P2:Q9 (unformatted to get raw numbers without currency symbols)
+	assetRange := types.BuildRange(newSheet, types.AssetCurrentRange)
+	assetResp, err := r.client.GetUnformatted(ctx, spreadsheetID, assetRange)
+	if err != nil {
+		return fmt.Errorf("reading asset data: %w", err)
+	}
+
+	// 5. Write asset values to P17:Q24 (last month's snapshot)
+	lastMonthRange := types.BuildRange(newSheet, types.AssetLastMonthRange)
+	if assetResp != nil && len(assetResp.Values) > 0 {
+		if err := r.client.Update(ctx, spreadsheetID, lastMonthRange, assetResp.Values); err != nil {
+			return fmt.Errorf("writing last month assets: %w", err)
+		}
+	}
+
+	// 6. Clear C4 (monthly salary)
+	salaryCell := types.BuildCell(newSheet, types.SalaryCellRef)
+	if err := r.client.ClearValues(ctx, spreadsheetID, salaryCell); err != nil {
+		return fmt.Errorf("clearing salary cell: %w", err)
+	}
+
+	// 7. Clear expense data rows 10+ (keep formatting)
+	clearRange := types.BuildRangeFromCells(newSheet, types.ExpensesLeftCol, types.ExpenseDataStartRow, types.ExpensesRightCol, 1000)
+	if err := r.client.ClearValues(ctx, spreadsheetID, clearRange); err != nil {
+		return fmt.Errorf("clearing expense data: %w", err)
+	}
+
+	// 8. Reset B2 to initial next expense ID
+	nextIDCell := types.BuildCell(newSheet, types.ExpensesNextIDCell)
+	if err := r.client.Update(ctx, spreadsheetID, nextIDCell, [][]interface{}{{types.NewMonthNextExpenseID}}); err != nil {
+		return fmt.Errorf("resetting next expense ID: %w", err)
+	}
+
+	// 9. Read formulas from current sheet C5:C9
+	formulaRange := types.BuildRange(currentSheet, types.InvestmentFormulaRange)
+	formulaResp, err := r.client.GetFormulas(ctx, spreadsheetID, formulaRange)
+	if err != nil {
+		return fmt.Errorf("reading investment formulas: %w", err)
+	}
+
+	// 10. Replace month reference in formulas: e.g. '2026_01' -> '2026_02'
+	if formulaResp != nil && len(formulaResp.Values) > 0 {
+		oldRef := fmt.Sprintf("'%s'", prevOfCurrent)
+		newRef := fmt.Sprintf("'%s'", currentSheet)
+		for i, row := range formulaResp.Values {
+			for j, cell := range row {
+				if s, ok := cell.(string); ok {
+					formulaResp.Values[i][j] = strings.ReplaceAll(s, oldRef, newRef)
+				}
+			}
+		}
+
+		// 11. Write updated formulas to new sheet
+		newFormulaRange := types.BuildRange(newSheet, types.InvestmentFormulaRange)
+		if err := r.client.UpdateUserEntered(ctx, spreadsheetID, newFormulaRange, formulaResp.Values); err != nil {
+			return fmt.Errorf("updating investment formulas: %w", err)
+		}
+	}
+
+	// 12. Clear investment notes
+	investmentNoteRange := types.BuildRange(newSheet, types.InvestmentNoteRange)
+	if err := r.client.ClearValues(ctx, spreadsheetID, investmentNoteRange); err != nil {
+		return fmt.Errorf("clearing investment notes: %w", err)
+	}
+
+	// 13. Update Database!B2 to the new sheet name
+	if err := r.UpdateActivePage(ctx, spreadsheetID, newSheet); err != nil {
+		return fmt.Errorf("updating active page: %w", err)
+	}
+
+	log.Info("new month sheet created", logrus.Fields{
+		"sheet": newSheet,
+	})
+
+	return nil
 }
 
 // GetValidSheetNames returns sheet names matching YYYY_MM format

@@ -107,9 +107,18 @@ Each user has their own spreadsheet with monthly sheets.
 **Key Cells:**
 - `B2`: Next expense ID counter
 - Row 3: Header row
-- Row 4+: Expense data
+- Rows 4-9: Fixed entries (salary, investments) -- preserved across months
+- Row 10+: Regular expense data
 - `I3:J9`: Group report
 - `L3:N15`: Category report
+
+**Asset Section (P:Q):**
+- `P2:Q9`: Current month asset breakdown (Total, Cash, Bank, eWallet, Saving, Investment, Lending, Debt)
+- `P17:Q24`: Last month's asset snapshot (copied during new month creation)
+
+**Investment Formulas:**
+- `C5:C9`: Formulas comparing investment values with previous month (e.g., `=AE4-'2026_02'!AE4`)
+- `AB16:AB30`: Investment notes
 
 ---
 
@@ -128,6 +137,16 @@ ExpensesNextIDCell     = "B2"
 ExpensesTopRow         = 3
 ExpensesReportRange    = "I3:J9"
 ExpensesCategoryRange  = "L3:N15"
+
+// New month sheet creation
+ExpenseDataStartRow    = 10
+NewMonthNextExpenseID  = 10
+SalaryCellRef          = "C4"
+InvestmentFormulaRange = "C5:C9"
+InvestmentNoteRange    = "AB16:AB30"
+AssetCurrentRange      = "P2:Q9"
+AssetLastMonthRange    = "P17:Q24"
+SheetNameCell          = "A1"
 ```
 
 ---
@@ -286,9 +305,37 @@ openai:
 | /expenses | ExpenseHandler.HandleExpensesCommand | Expense menu |
 | /expenses_add | ExpenseHandler.HandleExpensesAddCommand | Add expense |
 | /expenses_help | ExpenseHandler.HandleExpensesHelp | Groups/categories |
-| /gsheets | GSheetsHandler.HandleGSheetsCommand | Configure sheets |
+| /gsheets | GSheetsHandler.HandleGSheetsCommand | Configure sheets, create new month |
 | /settings | StartHandler.HandleSettings | Settings (not impl) |
 | /feedback | StartHandler.HandleFeedback | Feedback (not impl) |
+
+---
+
+## GSheets Callback Patterns
+
+| Pattern | Handler | Description |
+|---------|---------|-------------|
+| `gsheets:configure` | HandleConfigureCallback | Start configure flow |
+| `gsheets:help` | HandleHelpCallback | Show setup help |
+| `gsheets:update_current_page` | HandleUpdateActivePageCallback | Update active page |
+| `gsheets:update_current_page:{name}` | HandleUpdateActivePageCallback | Confirm page selection |
+| `gsheets:update_current_page_manual` | HandleManualPageInputCallback | Manual page input |
+| `gsheets:create_new_month` | HandleCreateNewMonthCallback | Show confirmation |
+| `gsheets:create_new_month:confirm` | HandleCreateNewMonthCallback | Execute sheet creation |
+
+### Create New Month Flow
+
+Automates monthly sheet creation via `/gsheets` > "Create New Month":
+1. Reads current active page from spreadsheet
+2. Shows confirmation: "Create 2026_03 from 2026_02?"
+3. On confirm, executes 13 steps:
+   - Duplicate sheet with new name
+   - Update A1 label
+   - Snapshot assets P2:Q9 to P17:Q24 (unformatted values)
+   - Clear salary (C4), expense data (rows 10+), investment notes (AB16:AB30)
+   - Reset next expense ID (B2 = 10)
+   - Update investment formulas C5:C9 (replace previous month reference)
+   - Set new sheet as active page
 
 ---
 

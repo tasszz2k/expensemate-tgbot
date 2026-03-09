@@ -51,12 +51,20 @@ func (h *GSheetsHandler) HandleGSheetsCommand(ctx context.Context, msg *tgbotapi
 		return reply, nil
 	}
 
-	reply.Text = fmt.Sprintf("Your Google Sheets: %s", spreadsheetURL)
+	activePage, _ := h.mappingService.GetActivePage(ctx, types.ID(msg.From.ID))
+	if activePage != "" {
+		reply.Text = fmt.Sprintf("Your Google Sheets: %s\nActive page: <b>%s</b>", spreadsheetURL, activePage)
+	} else {
+		reply.Text = fmt.Sprintf("Your Google Sheets: %s", spreadsheetURL)
+	}
 	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
 			tgbotapi.NewInlineKeyboardButtonURL("View", spreadsheetURL),
 			tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Create New Month", "gsheets:create_new_month"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Update Active Page", "gsheets:update_current_page"),
@@ -205,6 +213,56 @@ func (h *GSheetsHandler) HandleManualPageInputCallback(ctx context.Context, cb *
 	return reply, nil
 }
 
+// HandleCreateNewMonthCallback handles the create new month callback with confirmation
+func (h *GSheetsHandler) HandleCreateNewMonthCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, subCommands []string) (tgbotapi.MessageConfig, error) {
+	logger := log.WithCallback(cb)
+	log.WithAction(logger, "gsheets_create_new_month").Info("create new month flow")
+
+	reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")
+
+	// Confirmed -- execute creation
+	if len(subCommands) > 1 && subCommands[1] == "confirm" {
+		newSheet, err := h.mappingService.CreateNewMonthSheet(ctx, types.ID(cb.From.ID))
+		if err != nil {
+			reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
+			return reply, nil
+		}
+		reply.Text = fmt.Sprintf("<b>Sheet %s created successfully!</b>\n\nActive page has been updated.", newSheet)
+		return reply, nil
+	}
+
+	// Read the actual active page from the spreadsheet
+	currentPage, err := h.mappingService.GetActivePage(ctx, types.ID(cb.From.ID))
+	if err != nil {
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
+		return reply, nil
+	}
+
+	nextMonth, err := types.NextMonthName(currentPage)
+	if err != nil {
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
+		return reply, nil
+	}
+
+	reply.Text = fmt.Sprintf(
+		"Create new sheet <b>%s</b> from <b>%s</b>?\n\n"+
+			"This will:\n"+
+			"- Duplicate the current sheet\n"+
+			"- Clear salary and expense data\n"+
+			"- Update investment formulas\n"+
+			"- Snapshot assets as last month's data\n"+
+			"- Set the new sheet as active",
+		nextMonth, currentPage,
+	)
+	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Confirm", "gsheets:create_new_month:confirm"),
+		),
+	)
+
+	return reply, nil
+}
+
 // HandleCallback handles gsheets-related callbacks
 func (h *GSheetsHandler) HandleCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, action string, subCommands []string) (tgbotapi.MessageConfig, error) {
 	logger := log.WithCallback(cb)
@@ -219,6 +277,8 @@ func (h *GSheetsHandler) HandleCallback(ctx context.Context, cb *tgbotapi.Callba
 		return h.HandleUpdateActivePageCallback(ctx, cb, subCommands)
 	case types.GSheetsActionUpdateActivePageManual:
 		return h.HandleManualPageInputCallback(ctx, cb)
+	case types.GSheetsActionCreateNewMonth:
+		return h.HandleCreateNewMonthCallback(ctx, cb, subCommands)
 	default:
 		h.stateManager.End(cb.Message.Chat.ID)
 		reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")
