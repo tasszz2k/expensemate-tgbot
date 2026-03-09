@@ -1,7 +1,6 @@
 package model
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -68,28 +67,35 @@ type ParseResult struct {
 	CategoryProvided bool // true if user explicitly provided category
 }
 
-// ParseTextToExpense parses user input text into an Expense
+// ParseTextToExpense parses user input text into an Expense.
+// Supports single-line input (amount only, name defaults to "noname")
+// or multi-line input (name, amount, group, category, date, note).
 func ParseTextToExpense(text string) (ParseResult, error) {
 	lines := strings.Split(text, "\n")
-	if len(lines) < 2 {
-		return ParseResult{}, errors.New("invalid format: need at least name and amount")
-	}
 
 	// Pad to 6 lines
 	for len(lines) < 6 {
 		lines = append(lines, "")
 	}
 
-	// Parse name (required)
+	// Try parsing first line as amount (single-value input)
 	name := strings.TrimSpace(lines[0])
-	if name == "" {
-		return ParseResult{}, errors.New("expense name is required")
+	amount := currency.ParseAmount(lines[1])
+
+	if amount == 0 {
+		// First line might be the amount itself (single-line input)
+		amount = currency.ParseAmount(lines[0])
+		if amount > 0 {
+			// Shift lines: amount was on line 0, so lines 1-5 become group/cat/date/note
+			name = "noname"
+			lines = append([]string{name, lines[0]}, lines[1:]...)
+		} else {
+			return ParseResult{}, fmt.Errorf("invalid amount: %q", lines[1])
+		}
 	}
 
-	// Parse amount (required)
-	amount := currency.ParseAmount(lines[1])
-	if amount == 0 {
-		return ParseResult{}, fmt.Errorf("invalid amount: %q", lines[1])
+	if name == "" {
+		name = "noname"
 	}
 
 	// Parse group (optional, default: MUST HAVE)
