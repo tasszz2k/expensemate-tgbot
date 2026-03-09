@@ -116,8 +116,8 @@ func (h *ExpenseHandler) HandleExpensesAdd(ctx context.Context, msg *tgbotapi.Me
 
 	expense := result.Expense
 
-	// Get spreadsheet URL for link
-	spreadsheetURL, _ := h.mappingService.GetSpreadsheetURL(ctx, types.ID(msg.From.ID))
+	// Get spreadsheet URL pointing to active sheet
+	spreadsheetURL, _ := h.expenseService.GetSpreadsheetURL(ctx, types.ID(msg.From.ID))
 
 	reply.Text = fmt.Sprintf(`<b>Expense added successfully!</b>
 %s
@@ -229,11 +229,21 @@ func (h *ExpenseHandler) buildCategoryKeyboard(expenseID types.ID) tgbotapi.Inli
 
 // HandleExpensesView handles viewing recent expenses
 func (h *ExpenseHandler) HandleExpensesView(ctx context.Context, chatID int64, userID int64) (tgbotapi.MessageConfig, error) {
-	log.Debug("viewing expenses", log.Fields{"user_id": userID, "chat_id": chatID, "action": "expenses_view"})
+	return h.buildExpensesView(ctx, chatID, userID, 5)
+}
+
+// buildExpensesView builds the expenses view message with the given count
+func (h *ExpenseHandler) buildExpensesView(ctx context.Context, chatID int64, userID int64, count int) (tgbotapi.MessageConfig, error) {
+	log.Debug("viewing expenses", log.Fields{"user_id": userID, "chat_id": chatID, "action": "expenses_view", "count": count})
+
+	const maxCount = 25
+	if count > maxCount {
+		count = maxCount
+	}
 
 	reply := tgbotapi.NewMessage(chatID, "")
 
-	expenses, spreadsheetURL, err := h.expenseService.GetRecent(ctx, types.ID(userID), 5)
+	expenses, spreadsheetURL, err := h.expenseService.GetRecent(ctx, types.ID(userID), count)
 	if err != nil {
 		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
 		return reply, nil
@@ -244,12 +254,26 @@ func (h *ExpenseHandler) HandleExpensesView(ctx context.Context, chatID int64, u
 		return reply, nil
 	}
 
-	text := "<b>Recent Expenses:</b>\n\n"
+	text := "📋 <b>Recent Expenses:</b>\n\n"
 	for _, e := range expenses {
-		text += fmt.Sprintf("<b>%d.</b> %s - %s (%s)\n",
+		text += fmt.Sprintf("💰 <b>%d.</b> %s — <b>%s</b> (%s)\n",
 			e.ID, e.Name, currency.FormatVND(e.Amount), timepkg.FormatDateOnly(e.Date))
 	}
-	text += fmt.Sprintf("\n<a href=\"%s\">View all in Google Sheets</a>", spreadsheetURL)
+	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View all in Google Sheets</a>", spreadsheetURL)
+
+	// Add "Show more" button unless we've hit the max
+	if count < maxCount {
+		nextCount := count + 5
+		if nextCount > maxCount {
+			nextCount = maxCount
+		}
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Show more ⬇️", fmt.Sprintf("expenses:viewmore:%d", nextCount)),
+			),
+		)
+		reply.ReplyMarkup = keyboard
+	}
 
 	reply.Text = text
 	return reply, nil
@@ -267,25 +291,30 @@ func (h *ExpenseHandler) HandleExpensesReport(ctx context.Context, chatID int64,
 		return reply, nil
 	}
 
-	text := "<b>Expense Report</b>\n\n"
+	text := "📊 <b>Expense Report</b>\n\n"
 
 	// Group report
-	text += "<b>By Group:</b>\n"
+	text += "💼 <b>By Group:</b>\n"
 	for _, row := range groupReport {
 		if len(row) >= 2 {
-			text += fmt.Sprintf("  %s: %s\n", row[0], row[1])
+			amount := fmt.Sprintf("%v", row[1])
+			if isNonZeroAmount(amount) {
+				text += fmt.Sprintf("  🔸 %s: <b>%s</b>\n", row[0], amount)
+			} else {
+				text += fmt.Sprintf("  ▪️ %s: %s\n", row[0], amount)
+			}
 		}
 	}
 
-	// Category report
-	text += "\n<b>By Category:</b>\n"
+	// Category report (only non-zero)
+	text += "\n📂 <b>By Category:</b>\n"
 	for _, row := range categoryReport {
-		if len(row) >= 2 && row[1] != "" && row[1] != "0" {
-			text += fmt.Sprintf("  %s: %s\n", row[0], row[1])
+		if len(row) >= 2 && isNonZeroAmount(fmt.Sprintf("%v", row[1])) {
+			text += fmt.Sprintf("  🔹 %s: <b>%s</b>\n", row[0], row[1])
 		}
 	}
 
-	text += fmt.Sprintf("\n<a href=\"%s\">View full report in Google Sheets</a>", spreadsheetURL)
+	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View full report in Google Sheets</a>", spreadsheetURL)
 
 	reply.Text = text
 	return reply, nil
@@ -318,6 +347,8 @@ func (h *ExpenseHandler) HandleCallback(ctx context.Context, cb *tgbotapi.Callba
 		h.stateManager.End(chatID)
 		msg, err := h.HandleExpensesView(ctx, chatID, userID)
 		return NewMessageResponse(msg), err
+	case types.ExpenseActionViewMore:
+		return h.handleViewMoreCallback(ctx, subCommands, chatID, messageID, userID)
 	case types.ExpenseActionReport:
 		h.stateManager.End(chatID)
 		msg, err := h.HandleExpensesReport(ctx, chatID, userID)
@@ -373,6 +404,30 @@ func (h *ExpenseHandler) handleExpensesHelpCallback(ctx context.Context, chatID 
 	reply := tgbotapi.NewMessage(chatID, "")
 	reply.Text = getHelpText()
 	return reply, nil
+}
+
+// handleViewMoreCallback handles "Show more" button clicks on the expenses view
+func (h *ExpenseHandler) handleViewMoreCallback(ctx context.Context, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	if len(subCommands) < 2 {
+		return NewEditResponse(chatID, messageID, "Invalid callback data"), nil
+	}
+
+	count, err := strconv.Atoi(subCommands[1])
+	if err != nil || count <= 0 {
+		return NewEditResponse(chatID, messageID, "Invalid count"), nil
+	}
+
+	msg, err := h.buildExpensesView(ctx, chatID, userID, count)
+	if err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	// Edit the existing message instead of sending a new one
+	keyboard, _ := msg.ReplyMarkup.(tgbotapi.InlineKeyboardMarkup)
+	if len(keyboard.InlineKeyboard) > 0 {
+		return NewEditWithKeyboardResponse(chatID, messageID, msg.Text, keyboard), nil
+	}
+	return NewEditResponse(chatID, messageID, msg.Text), nil
 }
 
 // handleSetGroupCallback handles group selection callback
@@ -466,9 +521,9 @@ func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, 
 		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Expense saved!</b>\nID: %d\n\n(Expense not found)", expenseID)), nil
 	}
 
-	spreadsheetURL, _ := h.mappingService.GetSpreadsheetURL(ctx, types.ID(userID))
+	sheetURL, _ := h.expenseService.GetSpreadsheetURL(ctx, types.ID(userID))
 	text := fmt.Sprintf("<b>Expense saved!</b>\n%s%s\n\n<a href=\"%s\">View in Google Sheets</a>",
-		formatTranscriptionHTML(transcription), expense.FormatHTML(), spreadsheetURL)
+		formatTranscriptionHTML(transcription), expense.FormatHTML(), sheetURL)
 	return NewEditResponse(chatID, messageID, text), nil
 }
 
@@ -818,6 +873,16 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 	reply.ReplyMarkup = h.buildVoiceExpenseKeyboard(expense.ID, needsGroup, needsCategory)
 
 	return reply, nil
+}
+
+// isNonZeroAmount checks if an amount string represents a non-zero value.
+func isNonZeroAmount(amount string) bool {
+	for _, c := range amount {
+		if c >= '1' && c <= '9' {
+			return true
+		}
+	}
+	return false
 }
 
 // IsVoiceEnabled returns true if voice expense feature is enabled

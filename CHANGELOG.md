@@ -18,8 +18,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Active page name shown in `/gsheets` menu alongside spreadsheet URL
 - Google Sheets API methods: BatchUpdate, ClearValues, GetFormulas, GetUnformatted, GetSheetID, UpdateUserEntered
 - Month name helpers (`NextMonthName`, `PrevMonthName`) with year boundary rollover
+- "Show more" button on expense view to load additional expenses (5 at a time, up to 25)
+- `viewmore` callback action for paginated expense viewing
 
 ### Fixed
+- All "View in Google Sheets" links now navigate directly to the active sheet tab using canonical `/edit#gid=` URL format
+- Category report range expanded from `L3:N15` to `L3:N21` to include all 19 categories (Travel, Present, Life Events, etc. were missing)
+
+### Changed
+- Expense report formatting: non-zero amounts shown in bold, zero amounts shown with muted bullet
+- Expense view formatting: amounts shown in bold with dash separator
 - Voice expense date bug - OpenAI hallucinated dates (e.g., 4/10/2023) because the prompt didn't include today's date; now injects current date into user message
 - All date parsing/formatting now uses Asia/Ho_Chi_Minh timezone consistently instead of UTC, preventing date shifts near midnight
 

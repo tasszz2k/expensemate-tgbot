@@ -311,6 +311,24 @@ openai:
 
 ---
 
+## Expense Callback Patterns
+
+| Pattern | Handler | Description |
+|---------|---------|-------------|
+| `expenses:add` | HandleExpensesAdd | Start add flow |
+| `expenses:view` | HandleExpensesView | View recent 5 expenses |
+| `expenses:viewmore:{count}` | handleViewMoreCallback | Load more expenses (up to 25) |
+| `expenses:report` | HandleExpensesReport | Show report |
+| `expenses:setgrp:{id}:{alias}:{needsCat}` | handleSetGroupCallback | Set expense group |
+| `expenses:setcat:{id}:{alias}` | handleSetCategoryCallback | Set expense category |
+| `expenses:qdel:{id}` | handleQuickDeleteCallback | Quick delete expense |
+
+### Google Sheets Deep Links
+
+All "View in Google Sheets" links use the canonical format `https://docs.google.com/spreadsheets/d/{id}/edit#gid={sheetId}` to navigate directly to the active sheet tab. The `buildSheetURL` helper in `ExpenseService` looks up the sheet's numeric GID and constructs the URL. Falls back to the base URL if lookup fails.
+
+---
+
 ## GSheets Callback Patterns
 
 | Pattern | Handler | Description |

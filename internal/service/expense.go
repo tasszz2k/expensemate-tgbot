@@ -119,7 +119,8 @@ func (s *ExpenseService) GetRecent(ctx context.Context, userID types.ID, limit i
 		return nil, "", fmt.Errorf("getting recent expenses: %w", err)
 	}
 
-	return expenses, mapping.SpreadSheetsURL, nil
+	sheetURL := s.buildSheetURL(ctx, spreadsheetID, activePage, mapping.SpreadSheetsURL)
+	return expenses, sheetURL, nil
 }
 
 // GetByID retrieves an expense by ID
@@ -324,7 +325,7 @@ func (s *ExpenseService) AddFromModel(ctx context.Context, userID types.ID, expe
 	return expense, nil
 }
 
-// GetSpreadsheetURL returns the spreadsheet URL for a user
+// GetSpreadsheetURL returns the spreadsheet URL pointing to the active sheet for a user
 func (s *ExpenseService) GetSpreadsheetURL(ctx context.Context, userID types.ID) (string, error) {
 	mapping, err := s.mappingService.GetByUserID(ctx, userID)
 	if err != nil {
@@ -333,7 +334,14 @@ func (s *ExpenseService) GetSpreadsheetURL(ctx context.Context, userID types.ID)
 	if mapping == nil {
 		return "", fmt.Errorf("no spreadsheet configured for user %d", userID)
 	}
-	return mapping.SpreadSheetsURL, nil
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return mapping.SpreadSheetsURL, nil
+	}
+
+	return s.buildSheetURL(ctx, spreadsheetID, activePage, mapping.SpreadSheetsURL), nil
 }
 
 // GetReport retrieves expense reports for a user
@@ -363,5 +371,17 @@ func (s *ExpenseService) GetReport(ctx context.Context, userID types.ID) (groupR
 		return nil, nil, "", fmt.Errorf("getting category report: %w", err)
 	}
 
-	return groupReport, categoryReport, mapping.SpreadSheetsURL, nil
+	sheetURL := s.buildSheetURL(ctx, spreadsheetID, activePage, mapping.SpreadSheetsURL)
+	return groupReport, categoryReport, sheetURL, nil
+}
+
+// buildSheetURL builds a URL that navigates directly to the active sheet tab.
+// Uses the canonical /edit#gid= format so the fragment survives Google Sheets redirects.
+// Falls back to the base URL if the sheet ID lookup fails.
+func (s *ExpenseService) buildSheetURL(ctx context.Context, spreadsheetID, sheetName, baseURL string) string {
+	gid, err := s.repo.GetSheetID(ctx, spreadsheetID, sheetName)
+	if err != nil {
+		return baseURL
+	}
+	return fmt.Sprintf("https://docs.google.com/spreadsheets/d/%s/edit#gid=%d", spreadsheetID, gid)
 }

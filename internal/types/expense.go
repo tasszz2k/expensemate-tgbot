@@ -13,6 +13,7 @@ const (
 	ExpenseActionQuickDelete ExpenseAction = "qdel"
 	ExpenseActionReport      ExpenseAction = "report"
 	ExpenseActionHelp        ExpenseAction = "help"
+	ExpenseActionViewMore    ExpenseAction = "viewmore"
 	ExpenseActionSetGroup    ExpenseAction = "setgrp"
 	ExpenseActionSetCategory ExpenseAction = "setcat"
 )

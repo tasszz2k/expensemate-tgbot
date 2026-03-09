@@ -206,3 +206,8 @@ func (r *ExpenseRepository) UpdateGroup(ctx context.Context, spreadsheetID, shee
 
 	return r.client.Update(ctx, spreadsheetID, writeRange, [][]interface{}{{string(group)}})
 }
+
+// GetSheetID returns the numeric sheet ID for a given sheet name
+func (r *ExpenseRepository) GetSheetID(ctx context.Context, spreadsheetID, sheetName string) (int64, error) {
+	return r.client.GetSheetID(ctx, spreadsheetID, sheetName)
+}
