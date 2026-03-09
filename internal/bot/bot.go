@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"expensemate-tgbot/internal/handler"
 	"expensemate-tgbot/internal/log"
@@ -167,6 +168,9 @@ func (b *Bot) handleCommand(ctx context.Context, msg *tgbotapi.Message) (tgbotap
 		b.stateManager.End(chatID)
 		return b.expenseHandler.HandleExpensesHelp(ctx, msg)
 
+	case types.CommandBudget:
+		return b.expenseHandler.HandleBudgetCommand(ctx, msg)
+
 	case types.CommandGSheets:
 		return b.gsheetsHandler.HandleGSheetsCommand(ctx, msg)
 
@@ -203,6 +207,11 @@ func (b *Bot) handleConversation(ctx context.Context, msg *tgbotapi.Message, cur
 		return b.gsheetsHandler.HandleUpdateActivePage(ctx, msg)
 
 	default:
+		// Check for budget states (prefix-based)
+		if strings.HasPrefix(currentState, state.StateBudgetSetGroupPrefix) ||
+			strings.HasPrefix(currentState, state.StateBudgetSetCategoryPrefix) {
+			return b.expenseHandler.HandleBudgetAmountInput(ctx, msg)
+		}
 		b.stateManager.End(msg.Chat.ID)
 		return tgbotapi.NewMessage(msg.Chat.ID, "Unknown conversation state."), fmt.Errorf("unknown state: %s", currentState)
 	}

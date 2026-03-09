@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"expensemate-tgbot/internal/log"
+	"expensemate-tgbot/internal/model"
 	"expensemate-tgbot/internal/service"
 	"expensemate-tgbot/internal/state"
 	"expensemate-tgbot/internal/types"
@@ -56,17 +57,20 @@ func (h *ExpenseHandler) HandleExpensesCommand(ctx context.Context, msg *tgbotap
 		return h.getUnauthorizedMsg(reply), nil
 	}
 
-	reply.Text = "Manage your expenses:"
+	reply.Text = "💰 <b>Expense Manager</b>"
 	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Add", "expenses:add"),
-			tgbotapi.NewInlineKeyboardButtonData("View", "expenses:view"),
-			tgbotapi.NewInlineKeyboardButtonData("Report", "expenses:report"),
+			tgbotapi.NewInlineKeyboardButtonData("➕ Add", "expenses:add"),
+			tgbotapi.NewInlineKeyboardButtonData("📋 View", "expenses:view"),
+			tgbotapi.NewInlineKeyboardButtonData("📊 Report", "expenses:report"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Update", "expenses:update"),
-			tgbotapi.NewInlineKeyboardButtonData("Delete", "expenses:delete"),
-			tgbotapi.NewInlineKeyboardButtonData("Help", "expenses:help"),
+			tgbotapi.NewInlineKeyboardButtonData("💵 Budget", "expenses:budget"),
+			tgbotapi.NewInlineKeyboardButtonData("✏️ Update", "expenses:update"),
+			tgbotapi.NewInlineKeyboardButtonData("🗑 Delete", "expenses:delete"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("❓ Help", "expenses:help"),
 		),
 	)
 
@@ -86,14 +90,14 @@ func (h *ExpenseHandler) HandleExpensesAddCommand(ctx context.Context, msg *tgbo
 		return h.getUnauthorizedMsg(reply), nil
 	}
 
-	reply.Text = fmt.Sprintf(`Please provide the expense details:
----
-[expense name] <b>(*)</b>
-[amount] <b>(*)</b>
-[group] <i>(or select below)</i>
-[category] <i>(or select below)</i>
-[date] <i>(default: %s)</i>
-[note]`, timepkg.FormatDateOnly(time.Now()))
+	reply.Text = fmt.Sprintf(`➕ <b>Add Expense</b>
+
+📝 name <b>(*)</b>
+💵 amount <b>(*)</b>
+💼 group <i>(or select below)</i>
+📂 category <i>(or select below)</i>
+📅 date <i>(default: %s)</i>
+🗒 note`, timepkg.FormatDateOnly(time.Now()))
 
 	// Start conversation
 	h.stateManager.Start(msg.Chat.ID, state.StateExpensesAdd)
@@ -119,19 +123,25 @@ func (h *ExpenseHandler) HandleExpensesAdd(ctx context.Context, msg *tgbotapi.Me
 	// Get spreadsheet URL pointing to active sheet
 	spreadsheetURL, _ := h.expenseService.GetSpreadsheetURL(ctx, types.ID(msg.From.ID))
 
-	reply.Text = fmt.Sprintf(`<b>Expense added successfully!</b>
-%s
+	reply.Text = fmt.Sprintf("✅ <b>Expense added!</b>\n\n%s", expense.FormatHTML())
 
-<a href="%s">View in Google Sheets</a>`, expense.FormatHTML(), spreadsheetURL)
+	// Append budget status if budgets exist
+	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
+	if budgetLine != "" {
+		reply.Text += "\n\n" + budgetLine
+	}
+
+	reply.Text += fmt.Sprintf("\n\n🔗 <a href=\"%s\">View in Google Sheets</a>", spreadsheetURL)
 
 	// Only show group buttons if user didn't explicitly provide group
 	if !result.GroupProvided {
-		reply.Text += "\n\n<b>Select a group:</b>"
+		reply.Text += "\n\n💼 <b>Select a group:</b>"
 		reply.ReplyMarkup = h.buildGroupKeyboard(expense.ID, !result.CategoryProvided)
 	} else if !result.CategoryProvided && expense.Group.NeedsCategory() {
 		// Group was provided, but category wasn't - show category selection
 		// Skip category selection for Income/Investment groups
-		reply.Text += "\n\n<b>Select a category:</b>"
+		reply.Text += "\n\n📂 <b>Select a category:</b>"
 		reply.ReplyMarkup = h.buildCategoryKeyboard(expense.ID)
 	}
 
@@ -185,7 +195,7 @@ func (h *ExpenseHandler) buildGroupKeyboard(expenseID types.ID, needsCategoryAft
 	}
 	skipCallback := fmt.Sprintf("expenses:setgrp:%d:skip:%s", expenseID, needsCat)
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Skip (Keep Must Have)", skipCallback),
+		tgbotapi.NewInlineKeyboardButtonData("⏭ Skip (Keep Must Have)", skipCallback),
 	))
 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
@@ -221,7 +231,7 @@ func (h *ExpenseHandler) buildCategoryKeyboard(expenseID types.ID) tgbotapi.Inli
 
 	// Add Skip button - include expense ID so we can show final record
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Skip (Keep Unclassified)", fmt.Sprintf("expenses:setcat:%d:skip", expenseID)),
+		tgbotapi.NewInlineKeyboardButtonData("⏭ Skip (Keep Unclassified)", fmt.Sprintf("expenses:setcat:%d:skip", expenseID)),
 	))
 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
@@ -250,7 +260,7 @@ func (h *ExpenseHandler) buildExpensesView(ctx context.Context, chatID int64, us
 	}
 
 	if len(expenses) == 0 {
-		reply.Text = "No expenses found."
+		reply.Text = "📭 No expenses found."
 		return reply, nil
 	}
 
@@ -279,40 +289,24 @@ func (h *ExpenseHandler) buildExpensesView(ctx context.Context, chatID int64, us
 	return reply, nil
 }
 
-// HandleExpensesReport handles expense report
+// HandleExpensesReport handles expense report with budget comparison
 func (h *ExpenseHandler) HandleExpensesReport(ctx context.Context, chatID int64, userID int64) (tgbotapi.MessageConfig, error) {
 	log.Debug("generating report", log.Fields{"user_id": userID, "chat_id": chatID, "action": "expenses_report"})
 
 	reply := tgbotapi.NewMessage(chatID, "")
 
-	groupReport, categoryReport, spreadsheetURL, err := h.expenseService.GetReport(ctx, types.ID(userID))
+	groups, categories, spreadsheetURL, err := h.expenseService.GetBudgetOverview(ctx, types.ID(userID))
 	if err != nil {
 		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
 		return reply, nil
 	}
 
 	text := "📊 <b>Expense Report</b>\n\n"
-
-	// Group report
 	text += "💼 <b>By Group:</b>\n"
-	for _, row := range groupReport {
-		if len(row) >= 2 {
-			amount := fmt.Sprintf("%v", row[1])
-			if isNonZeroAmount(amount) {
-				text += fmt.Sprintf("  🔸 %s: <b>%s</b>\n", row[0], amount)
-			} else {
-				text += fmt.Sprintf("  ▪️ %s: %s\n", row[0], amount)
-			}
-		}
-	}
+	text += sortedReportLines(groups, "🔸")
 
-	// Category report (only non-zero)
 	text += "\n📂 <b>By Category:</b>\n"
-	for _, row := range categoryReport {
-		if len(row) >= 2 && isNonZeroAmount(fmt.Sprintf("%v", row[1])) {
-			text += fmt.Sprintf("  🔹 %s: <b>%s</b>\n", row[0], row[1])
-		}
-	}
+	text += sortedReportLines(categories, "🔹")
 
 	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View full report in Google Sheets</a>", spreadsheetURL)
 
@@ -363,10 +357,12 @@ func (h *ExpenseHandler) HandleCallback(ctx context.Context, cb *tgbotapi.Callba
 		return h.handleSetCategoryCallback(ctx, cb, subCommands, chatID, messageID, userID)
 	case types.ExpenseActionQuickDelete:
 		return h.handleQuickDeleteCallback(ctx, cb, subCommands, chatID, messageID, userID)
+	case types.ExpenseActionBudget:
+		return h.handleBudgetCallback(ctx, cb, subCommands[1:], chatID, messageID, userID)
 	default:
 		h.stateManager.End(chatID)
 		reply := tgbotapi.NewMessage(chatID, "")
-		reply.Text = "This action is not yet implemented."
+		reply.Text = "🚧 This action is not yet available."
 		return NewMessageResponse(reply), nil
 	}
 }
@@ -384,14 +380,14 @@ func (h *ExpenseHandler) handleExpensesAddCallback(ctx context.Context, cb *tgbo
 		return h.getUnauthorizedMsg(reply), nil
 	}
 
-	reply.Text = fmt.Sprintf(`Please provide the expense details:
----
-[expense name] <b>(*)</b>
-[amount] <b>(*)</b>
-[group] <i>(or select below)</i>
-[category] <i>(or select below)</i>
-[date] <i>(default: %s)</i>
-[note]`, timepkg.FormatDateOnly(time.Now()))
+	reply.Text = fmt.Sprintf(`➕ <b>Add Expense</b>
+
+📝 name <b>(*)</b>
+💵 amount <b>(*)</b>
+💼 group <i>(or select below)</i>
+📂 category <i>(or select below)</i>
+📅 date <i>(default: %s)</i>
+🗒 note`, timepkg.FormatDateOnly(time.Now()))
 
 	// Start conversation
 	h.stateManager.Start(chatID, state.StateExpensesAdd)
@@ -449,7 +445,7 @@ func (h *ExpenseHandler) handleSetGroupCallback(ctx context.Context, cb *tgbotap
 	// Check for skip - group stays as default
 	if subCommands[2] == "skip" {
 		if needsCategory && expenseID > 0 {
-			text := formatTranscriptionHTML(transcription) + "<b>Select a category:</b>"
+			text := formatTranscriptionHTML(transcription) + "📂 <b>Select a category:</b>"
 			return NewEditWithKeyboardResponse(chatID, messageID, text, h.buildCategoryKeyboard(types.ID(expenseID))), nil
 		}
 		return h.buildFinalExpenseResponse(ctx, userID, expenseID, chatID, messageID, transcription)
@@ -469,7 +465,7 @@ func (h *ExpenseHandler) handleSetGroupCallback(ctx context.Context, cb *tgbotap
 	// If category still needs to be selected and this group type needs categories, show category buttons
 	// Income and Investment don't need category selection
 	if needsCategory && group.NeedsCategory() {
-		text := formatTranscriptionHTML(transcription) + "<b>Select a category:</b>"
+		text := formatTranscriptionHTML(transcription) + "📂 <b>Select a category:</b>"
 		return NewEditWithKeyboardResponse(chatID, messageID, text, h.buildCategoryKeyboard(types.ID(expenseID))), nil
 	}
 
@@ -515,15 +511,23 @@ func (h *ExpenseHandler) handleSetCategoryCallback(ctx context.Context, cb *tgbo
 func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, expenseID int64, chatID int64, messageID int, transcription string) (Response, error) {
 	expense, err := h.expenseService.GetByID(ctx, types.ID(userID), types.ID(expenseID))
 	if err != nil {
-		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Expense saved!</b>\nID: %d\n\n(Could not load full details: %s)", expenseID, err.Error())), nil
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("✅ <b>Expense saved!</b>\n🆔 %d\n\n<i>(Could not load details)</i>", expenseID)), nil
 	}
 	if expense == nil {
-		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Expense saved!</b>\nID: %d\n\n(Expense not found)", expenseID)), nil
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("✅ <b>Expense saved!</b>\n🆔 %d\n\n<i>(Expense not found)</i>", expenseID)), nil
 	}
 
 	sheetURL, _ := h.expenseService.GetSpreadsheetURL(ctx, types.ID(userID))
-	text := fmt.Sprintf("<b>Expense saved!</b>\n%s%s\n\n<a href=\"%s\">View in Google Sheets</a>",
-		formatTranscriptionHTML(transcription), expense.FormatHTML(), sheetURL)
+
+	text := fmt.Sprintf("✅ <b>Expense saved!</b>\n%s%s", formatTranscriptionHTML(transcription), expense.FormatHTML())
+
+	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(userID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
+	if budgetLine != "" {
+		text += "\n\n" + budgetLine
+	}
+
+	text += fmt.Sprintf("\n\n🔗 <a href=\"%s\">View in Google Sheets</a>", sheetURL)
 	return NewEditResponse(chatID, messageID, text), nil
 }
 
@@ -554,9 +558,9 @@ func (h *ExpenseHandler) handleQuickDeleteCallback(ctx context.Context, cb *tgbo
 		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error deleting:</b> %s", err.Error())), nil
 	}
 
-	text := "<b>Expense deleted!</b>"
+	text := "🗑 <b>Expense deleted!</b>"
 	if expense != nil {
-		text = fmt.Sprintf("<b>Deleted:</b> %s - %s",
+		text = fmt.Sprintf("🗑 <b>Deleted:</b> %s — <b>%s</b>",
 			expense.Name, currency.FormatVND(expense.Amount))
 	}
 
@@ -598,7 +602,7 @@ func (h *ExpenseHandler) buildVoiceExpenseKeyboard(expenseID types.ID, needsGrou
 		}
 		skipCallback := fmt.Sprintf("expenses:setgrp:%d:skip:%s", expenseID, needsCat)
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Skip Group", skipCallback),
+			tgbotapi.NewInlineKeyboardButtonData("⏭ Skip Group", skipCallback),
 		))
 	} else if needsCategory {
 		// Add category buttons (2 per row)
@@ -622,14 +626,14 @@ func (h *ExpenseHandler) buildVoiceExpenseKeyboard(expenseID types.ID, needsGrou
 		}
 		// Skip category button
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Skip Category", fmt.Sprintf("expenses:setcat:%d:skip", expenseID)),
+			tgbotapi.NewInlineKeyboardButtonData("⏭ Skip Category", fmt.Sprintf("expenses:setcat:%d:skip", expenseID)),
 		))
 	}
 
 	// Always add delete button at the bottom
 	deleteCallback := fmt.Sprintf("expenses:qdel:%d", expenseID)
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-		tgbotapi.NewInlineKeyboardButtonData("Delete", deleteCallback),
+		tgbotapi.NewInlineKeyboardButtonData("🗑 Delete", deleteCallback),
 	))
 
 	return tgbotapi.NewInlineKeyboardMarkup(rows...)
@@ -661,43 +665,43 @@ func formatTranscriptionHTML(transcription string) string {
 
 // getHelpText returns the help text with all groups and categories
 func getHelpText() string {
-	return `<b>Expense Groups:</b>
-- INCOME (i, tn) - Thu nhập
-- INVESTMENT (inv, dt) - Đầu tư
-- MUST HAVE (mh, ty) - Thiết yếu
-- NICE TO HAVE (nth, nc) - Nên chi
-- WASTE (w, lp) - Lãng phí
-- FAMILY (fam, gd) - Gia đình
-- LOVER (lov, ny) - Người yêu
+	return `💼 <b>Expense Groups:</b>
+💰 INCOME (i, tn) - Thu nhập
+📈 INVESTMENT (inv, dt) - Đầu tư
+🔒 MUST HAVE (mh, ty) - Thiết yếu
+✨ NICE TO HAVE (nth, nc) - Nên chi
+🗑 WASTE (w, lp) - Lãng phí
+👨‍👩‍👧‍👦 FAMILY (fam, gd) - Gia đình
+❤️ LOVER (lov, ny) - Người yêu
 
-<b>Expense Categories:</b>
-- Food (f, an, cf) - Ăn ngoài
-- Groceries (gr, dc) - Đi chợ
-- Transport (tr, dl) - Đi lại
-- Entertainment (ent, gt) - Giải trí
-- Miscellaneous (mis, lt) - Linh tinh
-- Subscription (sub, dk) - Đăng ký
-- Housing (hou, no) - Nhà ở
-- Personal Care (pc, cs) - Chăm sóc
-- Healthcare (hc, sk) - Sức khỏe
-- Clothing (clo, qa) - Quần áo
-- Education (edu, hoc) - Giáo dục
-- Tech (tech, cn) - Công nghệ
-- Travel (tv, dul) - Du lịch
-- Present (pre, qt) - Quà tặng
-- Life Events (le, hh) - Hiếu hỉ
-- Lover (lov, ny) - Người yêu
-- Family (fam, gd) - Gia đình
-- Lost Money (lm, mat) - Mất tiền
-- Unclassified (uc, cpl) - Chưa phân loại`
+📂 <b>Expense Categories:</b>
+🍜 Food (f, an, cf) - Ăn ngoài
+🛒 Groceries (gr, dc) - Đi chợ
+🚗 Transport (tr, dl) - Đi lại
+🎮 Entertainment (ent, gt) - Giải trí
+📦 Miscellaneous (mis, lt) - Linh tinh
+🔄 Subscription (sub, dk) - Đăng ký
+🏠 Housing (hou, no) - Nhà ở
+💆 Personal Care (pc, cs) - Chăm sóc
+🏥 Healthcare (hc, sk) - Sức khỏe
+👕 Clothing (clo, qa) - Quần áo
+📚 Education (edu, hoc) - Giáo dục
+💻 Tech (tech, cn) - Công nghệ
+✈️ Travel (tv, dul) - Du lịch
+🎁 Present (pre, qt) - Quà tặng
+🎊 Life Events (le, hh) - Hiếu hỉ
+❤️ Lover (lov, ny) - Người yêu
+👨‍👩‍👧‍👦 Family (fam, gd) - Gia đình
+💸 Lost Money (lm, mat) - Mất tiền
+📋 Unclassified (uc, cpl) - Chưa phân loại`
 }
 
 // getUnauthorizedMsg returns the unauthorized message with configure button
 func (h *ExpenseHandler) getUnauthorizedMsg(msg tgbotapi.MessageConfig) tgbotapi.MessageConfig {
-	msg.Text = "Please configure Google Sheets first using /gsheets command."
+	msg.Text = "⚠️ Please configure Google Sheets first using /gsheets."
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ Configure", "gsheets:configure"),
 		),
 	)
 	return msg
@@ -717,7 +721,7 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 
 	// Check if voice service is enabled
 	if h.voiceExpenseService == nil || !h.voiceExpenseService.IsEnabled() {
-		reply.Text = "Voice input is not available. Please use text input."
+		reply.Text = "🎤 Voice input is not available. Please use text input."
 		return reply, nil
 	}
 
@@ -728,7 +732,7 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 	}
 
 	// Send processing message
-	reply.Text = "Processing voice message..."
+	reply.Text = "🎤 Processing voice message..."
 
 	// Process voice message
 	result, err := h.voiceExpenseService.ProcessVoiceMessage(ctx, types.ID(msg.From.ID), msg.Voice)
@@ -737,7 +741,7 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 			"user_id": msg.From.ID,
 			"action":  "voice_expense_error",
 		})
-		reply.Text = fmt.Sprintf("<b>Error processing voice:</b> %s\n\nPlease try again or use text input.", err.Error())
+		reply.Text = fmt.Sprintf("❌ <b>Error processing voice:</b> %s\n\nPlease try again or use text input.", err.Error())
 		return reply, nil
 	}
 
@@ -755,9 +759,7 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 		})
 		h.stateManager.Start(msg.Chat.ID, state.StateExpensesVoiceClarify)
 
-		reply.Text = fmt.Sprintf(`<b>I heard:</b> <i>"%s"</i>
-
-%s`, result.TranscribedText, result.ClarificationQuestion)
+		reply.Text = fmt.Sprintf("🎤 <b>I heard:</b> <i>\"%s\"</i>\n\n%s", result.TranscribedText, result.ClarificationQuestion)
 		return reply, nil
 	}
 
@@ -774,22 +776,21 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 	// the category from context, and the user should be able to confirm or change it
 	needsCategory := expense.Group.NeedsCategory()
 
-	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
+	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
 
-<b>Transcribed:</b> <i>"%s"</i>
-
-%s
-
-<a href="%s">View in Google Sheets</a>`,
-		result.TranscribedText,
-		expense.FormatHTML(),
-		result.SpreadsheetURL)
+	reply.Text = fmt.Sprintf("🎤 <b>Voice expense added!</b>\n\n🗣 <i>\"%s\"</i>\n\n%s",
+		result.TranscribedText, expense.FormatHTML())
+	if budgetLine != "" {
+		reply.Text += "\n\n" + budgetLine
+	}
+	reply.Text += fmt.Sprintf("\n\n🔗 <a href=\"%s\">View in Google Sheets</a>", result.SpreadsheetURL)
 
 	// Show keyboard with group/category selection and delete button
 	if needsGroup {
-		reply.Text += "\n\n<b>Select a group:</b>"
+		reply.Text += "\n\n💼 <b>Select a group:</b>"
 	} else if needsCategory {
-		reply.Text += "\n\n<b>Select a category:</b>"
+		reply.Text += "\n\n📂 <b>Select a category:</b>"
 	}
 	reply.ReplyMarkup = h.buildVoiceExpenseKeyboard(expense.ID, needsGroup, needsCategory)
 
@@ -807,7 +808,7 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 	pendingData := h.stateManager.GetVoicePendingData(msg.Chat.ID)
 	if pendingData == nil {
 		h.stateManager.End(msg.Chat.ID)
-		reply.Text = "No pending voice expense. Please send a new voice message."
+		reply.Text = "⚠️ No pending voice expense. Please send a new voice message."
 		return reply, nil
 	}
 
@@ -856,19 +857,20 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 	// the category from context, and the user should be able to confirm or change it
 	needsCategory := expense.Group.NeedsCategory()
 
-	reply.Text = fmt.Sprintf(`<b>Voice expense added!</b>
+	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
 
-%s
-
-<a href="%s">View in Google Sheets</a>`,
-		expense.FormatHTML(),
-		result.SpreadsheetURL)
+	reply.Text = fmt.Sprintf("🎤 <b>Voice expense added!</b>\n\n%s", expense.FormatHTML())
+	if budgetLine != "" {
+		reply.Text += "\n\n" + budgetLine
+	}
+	reply.Text += fmt.Sprintf("\n\n🔗 <a href=\"%s\">View in Google Sheets</a>", result.SpreadsheetURL)
 
 	// Show keyboard with group/category selection and delete button
 	if needsGroup {
-		reply.Text += "\n\n<b>Select a group:</b>"
+		reply.Text += "\n\n💼 <b>Select a group:</b>"
 	} else if needsCategory {
-		reply.Text += "\n\n<b>Select a category:</b>"
+		reply.Text += "\n\n📂 <b>Select a category:</b>"
 	}
 	reply.ReplyMarkup = h.buildVoiceExpenseKeyboard(expense.ID, needsGroup, needsCategory)
 
@@ -883,6 +885,449 @@ func isNonZeroAmount(amount string) bool {
 		}
 	}
 	return false
+}
+
+// abs64 returns the absolute value of x.
+func abs64(x int64) int64 {
+	if x < 0 {
+		return -x
+	}
+	return x
+}
+
+// formatBudgetStatus formats budget status for after-add display.
+func formatBudgetStatus(groupBudget, categoryBudget *model.BudgetEntry) string {
+	var parts []string
+	if groupBudget != nil {
+		parts = append(parts, groupBudget.FormatShortBudgetLine())
+	}
+	if categoryBudget != nil {
+		parts = append(parts, categoryBudget.FormatShortBudgetLine())
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "📊 <b>Budget:</b>\n" + strings.Join(parts, "\n")
+}
+
+// --- Budget handlers ---
+
+func (h *ExpenseHandler) handleBudgetCallback(ctx context.Context, cb *tgbotapi.CallbackQuery, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	if len(subCommands) == 0 {
+		return h.handleBudgetMenu(ctx, chatID, messageID, userID)
+	}
+
+	action := subCommands[0]
+	switch action {
+	case "view":
+		return h.handleBudgetView(ctx, chatID, messageID, userID)
+	case "setgrp":
+		return h.handleBudgetSetGroup(ctx, subCommands[1:], chatID, messageID, userID)
+	case "setcat":
+		return h.handleBudgetSetCategory(ctx, subCommands[1:], chatID, messageID, userID)
+	case "cleargrp":
+		return h.handleBudgetClearGroup(ctx, subCommands[1:], chatID, messageID, userID)
+	case "clearcat":
+		return h.handleBudgetClearCategory(ctx, subCommands[1:], chatID, messageID, userID)
+	case "back":
+		h.stateManager.End(chatID)
+		return h.handleBudgetMenu(ctx, chatID, messageID, userID)
+	default:
+		return NewEditResponse(chatID, messageID, "Unknown budget action"), nil
+	}
+}
+
+// HandleBudgetCommand handles the /budget command (sends a new message)
+func (h *ExpenseHandler) HandleBudgetCommand(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	logger := log.WithMessage(msg)
+	log.WithAction(logger, "budget").Info("user accessed budget menu")
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
+
+	mapping, err := h.mappingService.GetByUserID(ctx, types.ID(msg.From.ID))
+	if err != nil || mapping == nil {
+		return h.getUnauthorizedMsg(reply), nil
+	}
+
+	reply.Text = "💵 <b>Budget Manager</b>\nManage your spending caps:"
+	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 View Budgets", "expenses:budget:view"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💼 Set Group", "expenses:budget:setgrp"),
+			tgbotapi.NewInlineKeyboardButtonData("📂 Set Category", "expenses:budget:setcat"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back", "expenses:budget:back"),
+		),
+	)
+
+	return reply, nil
+}
+
+func (h *ExpenseHandler) handleBudgetMenu(ctx context.Context, chatID int64, messageID int, userID int64) (Response, error) {
+	h.stateManager.End(chatID)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📊 View Budgets", "expenses:budget:view"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("💼 Set Group", "expenses:budget:setgrp"),
+			tgbotapi.NewInlineKeyboardButtonData("📂 Set Category", "expenses:budget:setcat"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back", "expenses:budget:back"),
+		),
+	)
+
+	return NewEditWithKeyboardResponse(chatID, messageID, "💵 <b>Budget Manager</b>\nManage your spending caps:", keyboard), nil
+}
+
+func (h *ExpenseHandler) handleBudgetView(ctx context.Context, chatID int64, messageID int, userID int64) (Response, error) {
+	groups, categories, sheetURL, err := h.expenseService.GetBudgetOverview(ctx, types.ID(userID))
+	if err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	text := "📊 <b>Budget Overview</b>\n\n"
+
+	// Group section -- sorted: over -> ok -> empty
+	groupOver, groupOk := 0, 0
+	var groupLinesOver, groupLinesOk, groupLinesEmpty []string
+	for _, g := range groups {
+		if !g.HasBudget {
+			continue
+		}
+		line := g.FormatBudgetLine()
+		if g.Remaining < 0 {
+			groupOver++
+			groupLinesOver = append(groupLinesOver, line)
+		} else if g.Spent > 0 {
+			groupOk++
+			groupLinesOk = append(groupLinesOk, line)
+		} else {
+			groupOk++
+			groupLinesEmpty = append(groupLinesEmpty, line)
+		}
+	}
+
+	total := len(groupLinesOver) + len(groupLinesOk) + len(groupLinesEmpty)
+	if total > 0 {
+		text += fmt.Sprintf("💼 <b>By Group</b> <i>(%d ok, %d over)</i>\n", groupOk, groupOver)
+		for _, line := range groupLinesOver {
+			text += line + "\n"
+		}
+		for _, line := range groupLinesOk {
+			text += line + "\n"
+		}
+		for _, line := range groupLinesEmpty {
+			text += line + "\n"
+		}
+	}
+
+	// Category section -- sorted: over -> ok -> empty
+	catOver, catOk := 0, 0
+	var catLinesOver, catLinesOk, catLinesEmpty []string
+	for _, c := range categories {
+		if !c.HasBudget {
+			continue
+		}
+		line := c.FormatBudgetLine()
+		if c.Remaining < 0 {
+			catOver++
+			catLinesOver = append(catLinesOver, line)
+		} else if c.Spent > 0 {
+			catOk++
+			catLinesOk = append(catLinesOk, line)
+		} else {
+			catOk++
+			catLinesEmpty = append(catLinesEmpty, line)
+		}
+	}
+
+	total = len(catLinesOver) + len(catLinesOk) + len(catLinesEmpty)
+	if total > 0 {
+		text += fmt.Sprintf("\n📂 <b>By Category</b> <i>(%d ok, %d over)</i>\n", catOk, catOver)
+		for _, line := range catLinesOver {
+			text += line + "\n"
+		}
+		for _, line := range catLinesOk {
+			text += line + "\n"
+		}
+		for _, line := range catLinesEmpty {
+			text += line + "\n"
+		}
+	}
+
+	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View in Google Sheets</a>", sheetURL)
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back", "expenses:budget:back"),
+		),
+	)
+
+	return NewEditWithKeyboardResponse(chatID, messageID, text, keyboard), nil
+}
+
+func (h *ExpenseHandler) handleBudgetSetGroup(ctx context.Context, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	// If a specific row was selected, prompt for amount
+	if len(subCommands) > 0 {
+		row, err := strconv.Atoi(subCommands[0])
+		if err != nil {
+			return NewEditResponse(chatID, messageID, "Invalid row"), nil
+		}
+
+		// Find group name for this row
+		groupName := ""
+		for g, r := range types.GroupBudgetRow {
+			if r == row {
+				groupName = types.GetGroupShortName(g)
+				break
+			}
+		}
+
+		h.stateManager.Start(chatID, state.StateBudgetSetGroupPrefix+subCommands[0])
+		h.stateManager.SetBudgetPendingData(chatID, &state.BudgetPendingData{
+			Col: types.GroupBudgetCol,
+			Row: row,
+		})
+
+		return NewEditResponse(chatID, messageID,
+			fmt.Sprintf("💵 Enter budget for <b>%s</b>:\n\n<i>Supports: 100k, 1.5m, 1500000</i>", groupName)), nil
+	}
+
+	// Show group selection buttons
+	var rows [][]tgbotapi.InlineKeyboardButton
+	allGroups := types.GetAllGroups()
+
+	for i := 0; i < len(allGroups); i += 2 {
+		var row []tgbotapi.InlineKeyboardButton
+		g := allGroups[i]
+		if r, ok := types.GroupBudgetRow[g]; ok {
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+				types.GetGroupShortName(g),
+				fmt.Sprintf("expenses:budget:setgrp:%d", r),
+			))
+		}
+		if i+1 < len(allGroups) {
+			g2 := allGroups[i+1]
+			if r, ok := types.GroupBudgetRow[g2]; ok {
+				row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+					types.GetGroupShortName(g2),
+					fmt.Sprintf("expenses:budget:setgrp:%d", r),
+				))
+			}
+		}
+		if len(row) > 0 {
+			rows = append(rows, row)
+		}
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Back", "expenses:budget:back"),
+	))
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	return NewEditWithKeyboardResponse(chatID, messageID, "💼 <b>Select a group to set budget:</b>", keyboard), nil
+}
+
+func (h *ExpenseHandler) handleBudgetSetCategory(ctx context.Context, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	// If a specific row was selected, prompt for amount
+	if len(subCommands) > 0 {
+		row, err := strconv.Atoi(subCommands[0])
+		if err != nil {
+			return NewEditResponse(chatID, messageID, "Invalid row"), nil
+		}
+
+		// Find category name for this row
+		catName := ""
+		for c, r := range types.CategoryBudgetRow {
+			if r == row {
+				catName = types.GetCategoryShortName(c)
+				break
+			}
+		}
+
+		h.stateManager.Start(chatID, state.StateBudgetSetCategoryPrefix+subCommands[0])
+		h.stateManager.SetBudgetPendingData(chatID, &state.BudgetPendingData{
+			Col: types.CategoryBudgetCol,
+			Row: row,
+		})
+
+		return NewEditResponse(chatID, messageID,
+			fmt.Sprintf("💵 Enter budget for <b>%s</b>:\n\n<i>Supports: 100k, 1.5m, 1500000</i>", catName)), nil
+	}
+
+	// Show category selection buttons
+	var rows [][]tgbotapi.InlineKeyboardButton
+	allCategories := types.GetAllCategories()
+
+	for i := 0; i < len(allCategories); i += 2 {
+		var row []tgbotapi.InlineKeyboardButton
+		c := allCategories[i]
+		if r, ok := types.CategoryBudgetRow[c]; ok {
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+				types.GetCategoryShortName(c),
+				fmt.Sprintf("expenses:budget:setcat:%d", r),
+			))
+		}
+		if i+1 < len(allCategories) {
+			c2 := allCategories[i+1]
+			if r, ok := types.CategoryBudgetRow[c2]; ok {
+				row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+					types.GetCategoryShortName(c2),
+					fmt.Sprintf("expenses:budget:setcat:%d", r),
+				))
+			}
+		}
+		if len(row) > 0 {
+			rows = append(rows, row)
+		}
+	}
+
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Back", "expenses:budget:back"),
+	))
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+	return NewEditWithKeyboardResponse(chatID, messageID, "📂 <b>Select a category to set budget:</b>", keyboard), nil
+}
+
+func (h *ExpenseHandler) handleBudgetClearGroup(ctx context.Context, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	if len(subCommands) == 0 {
+		// Show group selection for clearing
+		var rows [][]tgbotapi.InlineKeyboardButton
+		allGroups := types.GetAllGroups()
+		for i := 0; i < len(allGroups); i += 2 {
+			var row []tgbotapi.InlineKeyboardButton
+			g := allGroups[i]
+			if r, ok := types.GroupBudgetRow[g]; ok {
+				row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+					types.GetGroupShortName(g),
+					fmt.Sprintf("expenses:budget:cleargrp:%d", r),
+				))
+			}
+			if i+1 < len(allGroups) {
+				g2 := allGroups[i+1]
+				if r, ok := types.GroupBudgetRow[g2]; ok {
+					row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+						types.GetGroupShortName(g2),
+						fmt.Sprintf("expenses:budget:cleargrp:%d", r),
+					))
+				}
+			}
+			if len(row) > 0 {
+				rows = append(rows, row)
+			}
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back", "expenses:budget:back"),
+		))
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+		return NewEditWithKeyboardResponse(chatID, messageID, "🧹 <b>Select a group to clear budget:</b>", keyboard), nil
+	}
+
+	row, err := strconv.Atoi(subCommands[0])
+	if err != nil {
+		return NewEditResponse(chatID, messageID, "Invalid row"), nil
+	}
+
+	if err := h.expenseService.ClearBudget(ctx, types.ID(userID), types.GroupBudgetCol, row); err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back", "expenses:budget:back"),
+		),
+	)
+	return NewEditWithKeyboardResponse(chatID, messageID, "✅ <b>Budget cleared!</b>", keyboard), nil
+}
+
+func (h *ExpenseHandler) handleBudgetClearCategory(ctx context.Context, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	if len(subCommands) == 0 {
+		var rows [][]tgbotapi.InlineKeyboardButton
+		allCategories := types.GetAllCategories()
+		for i := 0; i < len(allCategories); i += 2 {
+			var row []tgbotapi.InlineKeyboardButton
+			c := allCategories[i]
+			if r, ok := types.CategoryBudgetRow[c]; ok {
+				row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+					types.GetCategoryShortName(c),
+					fmt.Sprintf("expenses:budget:clearcat:%d", r),
+				))
+			}
+			if i+1 < len(allCategories) {
+				c2 := allCategories[i+1]
+				if r, ok := types.CategoryBudgetRow[c2]; ok {
+					row = append(row, tgbotapi.NewInlineKeyboardButtonData(
+						types.GetCategoryShortName(c2),
+						fmt.Sprintf("expenses:budget:clearcat:%d", r),
+					))
+				}
+			}
+			if len(row) > 0 {
+				rows = append(rows, row)
+			}
+		}
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back", "expenses:budget:back"),
+		))
+		keyboard := tgbotapi.NewInlineKeyboardMarkup(rows...)
+		return NewEditWithKeyboardResponse(chatID, messageID, "🧹 <b>Select a category to clear budget:</b>", keyboard), nil
+	}
+
+	row, err := strconv.Atoi(subCommands[0])
+	if err != nil {
+		return NewEditResponse(chatID, messageID, "Invalid row"), nil
+	}
+
+	if err := h.expenseService.ClearBudget(ctx, types.ID(userID), types.CategoryBudgetCol, row); err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	keyboard := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⬅️ Back", "expenses:budget:back"),
+		),
+	)
+	return NewEditWithKeyboardResponse(chatID, messageID, "✅ <b>Budget cleared!</b>", keyboard), nil
+}
+
+// HandleBudgetAmountInput handles text input for budget amount when in budget set state.
+func (h *ExpenseHandler) HandleBudgetAmountInput(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
+
+	pending := h.stateManager.GetBudgetPendingData(msg.Chat.ID)
+	if pending == nil {
+		reply.Text = "⚠️ No budget selection found. Please try again."
+		h.stateManager.End(msg.Chat.ID)
+		return reply, nil
+	}
+
+	// Parse amount using currency.ParseAmount (supports 500k, 1.5m, 1500000)
+	amount := currency.ParseAmount(msg.Text)
+	if amount <= 0 {
+		reply.Text = "❌ <b>Invalid amount.</b> Please enter a valid amount (e.g., 500k, 1.5m, 1000000)"
+		return reply, nil
+	}
+
+	// Set budget
+	if err := h.expenseService.SetBudget(ctx, types.ID(msg.From.ID), pending.Col, pending.Row, uint64(amount)); err != nil {
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
+		h.stateManager.End(msg.Chat.ID)
+		h.stateManager.ClearBudgetPendingData(msg.Chat.ID)
+		return reply, nil
+	}
+
+	h.stateManager.End(msg.Chat.ID)
+	h.stateManager.ClearBudgetPendingData(msg.Chat.ID)
+
+	reply.Text = fmt.Sprintf("✅ <b>Budget updated to %s</b>", currency.FormatVND(types.Unsigned(amount)))
+	return reply, nil
 }
 
 // IsVoiceEnabled returns true if voice expense feature is enabled

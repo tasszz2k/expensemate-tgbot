@@ -42,19 +42,59 @@ const (
 	ExpensesLeftCol    = "A"
 	ExpensesRightCol   = "G"
 
-	ExpensesReportRange   = "I3:J9"
-	ExpensesCategoryRange = "L3:N21"
+	ExpensesReportRange   = "I3:J10"
+	ExpensesCategoryRange = "N3:P21"
+
+	GroupBudgetCol                = "K"
+	CategoryBudgetCol             = "Q"
+	GroupReportWithBudgetRange    = "I3:L10"
+	CategoryReportWithBudgetRange = "N3:R21"
 
 	// New month sheet creation
 	ExpenseDataStartRow    = 10
 	NewMonthNextExpenseID  = 10
 	SalaryCellRef          = "C4"
 	InvestmentFormulaRange = "C5:C9"
-	InvestmentNoteRange    = "AB16:AB30"
-	AssetCurrentRange      = "P2:Q9"
-	AssetLastMonthRange    = "P17:Q24"
+	InvestmentNoteRange    = "AF16:AF30"
+	AssetCurrentRange   = "T2:U9"
+	AssetLastMonthRange = "T17:U24"
 	SheetNameCell          = "A1"
 )
+
+// GroupBudgetRow maps groups to their sheet row numbers in the group report (I3:L10)
+var GroupBudgetRow = map[Group]int{
+	GroupIncome:        3,
+	GroupInvestmentOut: 4,
+	// Row 5 is INVESTMENT PROFIT (formula row, not user-settable)
+	GroupMustHave:   6,
+	GroupNiceToHave: 7,
+	GroupWaste:      8,
+	GroupFamily:     9,
+	GroupLover:      10,
+}
+
+// CategoryBudgetRow maps categories to their sheet row numbers in the category report (N3:R21)
+var CategoryBudgetRow = map[Category]int{
+	CategoryUnclassified:  3,
+	CategoryFood:          4,
+	CategoryGroceries:     5,
+	CategoryTransport:     6,
+	CategoryEntertainment: 7,
+	CategoryMiscellaneous: 8,
+	CategorySubscription:  9,
+	CategoryHousing:       10,
+	CategoryPersonalCare:  11,
+	CategoryHealthcare:    12,
+	CategoryClothing:      13,
+	CategoryEducation:     14,
+	CategoryTech:          15,
+	CategoryTravel:        16,
+	CategoryPresent:       17,
+	CategoryLifeEvents:    18,
+	CategoryLover:         19,
+	CategoryFamily:        20,
+	CategoryLostMoney:     21,
+}
 
 // sheetNamePattern validates YYYY_MM format
 var sheetNamePattern = regexp.MustCompile(`^\d{4}_\d{2}$`)

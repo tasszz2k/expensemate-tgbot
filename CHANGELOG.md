@@ -8,13 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Budget (Expense Plan) feature for setting monthly spending caps per group and category
+  - `/budget` standalone command for quick access to budget management
+  - Budget menu accessible from `/expenses` > "Budget" button
+  - View budget overview with emoji status indicators and sorted display (over -> ok -> empty)
+  - Set/update budget caps for individual groups and categories via Telegram
+  - Budget data stored in Google Sheets alongside existing reports (columns K for groups, Q for categories)
+  - Budget status shown after adding expenses (text, voice, and group/category button selection)
+  - Budget status shown in expense report with spent/budget/remaining breakdown
+  - `BudgetEntry` model with `FormatBudgetLine()` and `FormatShortBudgetLine()` display methods
+  - `BatchGet` method on Sheets client for efficient multi-range reads
+  - Budget conversation states (`budget:set_group:{row}`, `budget:set_category:{row}`)
 - Auto-create monthly sheet via `/gsheets` > "Create New Month" button
   - Duplicates current sheet with next month name (handles year rollover, e.g. 2025_12 -> 2026_01)
-  - Clears salary (C4), expense data (rows 10+), and investment notes (AB16:AB30)
-  - Snapshots current asset values (P2:Q9) to last month section (P17:Q24)
+  - Clears salary (C4), expense data (rows 10+), and investment notes (AF16:AF30)
+  - Snapshots current asset values (T2:U9) to last month section (T17:U24)
   - Updates investment formulas (C5:C9) to reference the correct previous month
   - Resets next expense ID to 10 and sets new sheet as active page
   - Two-step confirmation flow to prevent accidental creation
+  - "View in Google Sheets" link shown in success message
 - Active page name shown in `/gsheets` menu alongside spreadsheet URL
 - Google Sheets API methods: BatchUpdate, ClearValues, GetFormulas, GetUnformatted, GetSheetID, UpdateUserEntered
 - Month name helpers (`NextMonthName`, `PrevMonthName`) with year boundary rollover
@@ -24,14 +36,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - All "View in Google Sheets" links now navigate directly to the active sheet tab using canonical `/edit#gid=` URL format
 - Category report range expanded from `L3:N15` to `L3:N21` to include all 19 categories (Travel, Present, Life Events, etc. were missing)
+- `InvestmentNoteRange` updated from `AB16:AB30` to `AF16:AF30` to match column shift from budget feature
+- Budget status now shown after group/category selection via inline buttons (was only shown on initial add)
+- Budget status now shown for voice expenses and voice clarification responses
 
 ### Changed
+- Column layout shifted for budget columns: categories report N3:P21 (+2), assets T2:U9 (+4), investment notes AF16:AF30 (+4)
 - Expense report formatting: non-zero amounts shown in bold, zero amounts shown with muted bullet
 - Expense view formatting: amounts shown in bold with dash separator
 - Voice expense date bug - OpenAI hallucinated dates (e.g., 4/10/2023) because the prompt didn't include today's date; now injects current date into user message
 - All date parsing/formatting now uses Asia/Ho_Chi_Minh timezone consistently instead of UTC, preventing date shifts near midnight
-
-### Changed
 - Expanded Whisper vocabulary prompt from food-only to all expense categories (tech, personal care, housing, transport, investments, events)
 - Expanded ChatGPT system prompt with comprehensive Vietnamese speech-to-text corrections across all categories
 - Category selection buttons now show bilingual labels (e.g., "Food / Ăn ngoài", "Housing / Nhà ở")

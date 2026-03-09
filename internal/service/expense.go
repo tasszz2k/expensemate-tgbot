@@ -375,6 +375,119 @@ func (s *ExpenseService) GetReport(ctx context.Context, userID types.ID) (groupR
 	return groupReport, categoryReport, sheetURL, nil
 }
 
+// GetBudgetOverview returns all group and category budget entries with the sheet URL.
+func (s *ExpenseService) GetBudgetOverview(ctx context.Context, userID types.ID) (groups []model.BudgetEntry, categories []model.BudgetEntry, spreadsheetURL string, err error) {
+	mapping, err := s.mappingService.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("getting user mapping: %w", err)
+	}
+	if mapping == nil {
+		return nil, nil, "", fmt.Errorf("no spreadsheet configured for user %d", userID)
+	}
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("getting active page: %w", err)
+	}
+
+	groups, err = s.repo.GetGroupReportWithBudget(ctx, spreadsheetID, activePage)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("getting group budgets: %w", err)
+	}
+
+	categories, err = s.repo.GetCategoryReportWithBudget(ctx, spreadsheetID, activePage)
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("getting category budgets: %w", err)
+	}
+
+	sheetURL := s.buildSheetURL(ctx, spreadsheetID, activePage, mapping.SpreadSheetsURL)
+	return groups, categories, sheetURL, nil
+}
+
+// GetBudgetForExpense returns budget entries for a specific group and category (used after adding an expense).
+func (s *ExpenseService) GetBudgetForExpense(ctx context.Context, userID types.ID, group types.Group, category types.Category) (groupBudget *model.BudgetEntry, categoryBudget *model.BudgetEntry, err error) {
+	mapping, err := s.mappingService.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting user mapping: %w", err)
+	}
+	if mapping == nil {
+		return nil, nil, nil
+	}
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting active page: %w", err)
+	}
+
+	groups, err := s.repo.GetGroupReportWithBudget(ctx, spreadsheetID, activePage)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting group budgets: %w", err)
+	}
+
+	for i := range groups {
+		if types.Group(groups[i].Name) == group && groups[i].HasBudget {
+			groupBudget = &groups[i]
+			break
+		}
+	}
+
+	if group.NeedsCategory() {
+		categories, err := s.repo.GetCategoryReportWithBudget(ctx, spreadsheetID, activePage)
+		if err != nil {
+			return groupBudget, nil, fmt.Errorf("getting category budgets: %w", err)
+		}
+
+		for i := range categories {
+			if types.Category(categories[i].Name) == category && categories[i].HasBudget {
+				categoryBudget = &categories[i]
+				break
+			}
+		}
+	}
+
+	return groupBudget, categoryBudget, nil
+}
+
+// SetBudget sets a budget value for a group or category.
+func (s *ExpenseService) SetBudget(ctx context.Context, userID types.ID, col string, row int, amount uint64) error {
+	mapping, err := s.mappingService.GetByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("getting user mapping: %w", err)
+	}
+	if mapping == nil {
+		return fmt.Errorf("no spreadsheet configured for user %d", userID)
+	}
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return fmt.Errorf("getting active page: %w", err)
+	}
+
+	return s.repo.SetBudget(ctx, spreadsheetID, activePage, col, row, amount)
+}
+
+// ClearBudget clears a budget value.
+func (s *ExpenseService) ClearBudget(ctx context.Context, userID types.ID, col string, row int) error {
+	mapping, err := s.mappingService.GetByUserID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("getting user mapping: %w", err)
+	}
+	if mapping == nil {
+		return fmt.Errorf("no spreadsheet configured for user %d", userID)
+	}
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return fmt.Errorf("getting active page: %w", err)
+	}
+
+	return s.repo.ClearBudget(ctx, spreadsheetID, activePage, col, row)
+}
+
 // buildSheetURL builds a URL that navigates directly to the active sheet tab.
 // Uses the canonical /edit#gid= format so the fragment survives Google Sheets redirects.
 // Falls back to the base URL if the sheet ID lookup fails.

@@ -1,6 +1,6 @@
 # ExpenseMate Telegram Chatbot
 
-ExpenseMate Telegram Chatbot is a versatile tool designed to help users manage their expenses efficiently within the Telegram messaging platform. With ExpenseMate, users can easily add, view, update, and delete expenses, as well as generate expense reports and configure Google Sheets integration for seamless expense tracking.
+ExpenseMate is a Telegram bot for personal expense tracking with Google Sheets integration, voice input support, and budget management.
 
 | Bot                               | Commands                            | /gsheets                                  |
 |-----------------------------------|-------------------------------------|-------------------------------------------|
@@ -16,137 +16,96 @@ ExpenseMate Telegram Chatbot is a versatile tool designed to help users manage t
 
 ---
 
-## Table of Contents
+## Features
 
-- [Project Overview](#project-overview)
-- [Requirements](#requirements)
-- [Commands](#commands)
-    - [/start](#start)
-    - [/expenses](#expenses)
-    - [/gsheets](#gsheets)
-    - [/settings](#settings)
-    - [/feedback](#feedback)
-    - [/help](#help)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
-## Project Overview
-
-ExpenseMate Telegram Chatbot is designed to facilitate expense management and tracking for users directly within the Telegram messaging platform. The chatbot provides a user-friendly interface for adding, viewing, updating, and deleting expenses, as well as configuring Google Sheets integration for comprehensive expense tracking and reporting.
-
----
-
-## Requirements
-
-ExpenseMate Telegram Chatbot has the following requirements:
-
-### Business Constants
-
-- **Expense Groups**:
-    - INCOME / thu nhập
-    - MUST HAVE / chi tiêu thiết yếu
-    - NICE TO HAVE / không phải chi tiêu thiết yếu, nhưng nên chi, có thì tốt
-    - WASTE / chi tiêu không cần thiết, lãng phí
-    - OTHER / khác
-
-- **Expense Categories**:
-    - Unclassified / Chưa phân loại
-    - Food / Ăn uống
-    - Housing / Nhà ở
-    - Transportation / Đi lại
-    - Utilities / Tiện ích
-    - Healthcare / Sức khỏe
-    - Entertainment / Giải trí
-    - Education / Giáo dục
-    - Clothing / Quần áo
-    - Personal Care / Chăm sóc cá nhân
-    - Miscellaneous / Đồ linh tinh
-    - Travel / Du lịch
-    - Other / Khác
+- Add expenses via text or voice input
+- View, update, and delete expenses
+- Expense reports by group and category
+- Budget management with overspend alerts
+- Google Sheets integration for data storage
+- Monthly sheet creation with automated setup
+- Voice expense input via OpenAI Whisper + ChatGPT
 
 ---
 
 ## Commands
 
-ExpenseMate Telegram Chatbot supports the following commands:
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message and getting started |
+| `/help` | Show available commands |
+| `/expenses` | Expense manager menu (Add, View, Report, Budget, Update, Delete, Help) |
+| `/expenses_add` | Quickly add an expense |
+| `/expenses_help` | View supported groups & categories |
+| `/gsheets` | Configure Google Sheets (Configure, View, Create New Month, Update Active Page) |
+| `/settings` | Bot settings (Admin only) |
+| `/feedback` | Send feedback |
 
-### /start
+---
 
-- Greet the user and provide a guide on using the bot.
-- Configure Google Sheets integration with `/gsheets` command.
+## Expense Groups
 
-### /expenses
+| Emoji | Group | Aliases |
+|-------|-------|---------|
+| 💰 | INCOME | `i`, `tn` |
+| 📈 | INVESTMENT OUT | `inv`, `dt`, `io` |
+| 🔒 | MUST HAVE | `mh`, `ty` |
+| ✨ | NICE TO HAVE | `nth`, `nc` |
+| 🗑 | WASTED | `w`, `lp` |
+| 👨‍👩‍👧‍👦 | FAMILY | `fam`, `gd` |
+| ❤️ | LOVER | `lov`, `ny` |
 
-- Manage expenses with sub-commands:
-    - add
-    - view
-    - update
-    - delete
-    - report
-    - help
+## Expense Categories
 
-### /gsheets
-
-- Manage Google Sheets integration with sub-commands:
-    - list
-    - select
-    - configure
-
-### /settings
-
-- *(Admin only)* Manage bot settings.
-
-### /feedback
-
-- Send feedback to the bot's admin:
-    - report bug
-    - suggest feature
-    - say thanks
-
-### /help
-
-- Show a list of available commands with descriptions.
+| Emoji | Category | Aliases |
+|-------|----------|---------|
+| 🍜 | Food / Ăn ngoài | `f`, `an`, `cf` |
+| 🛒 | Groceries / Đi chợ | `gr`, `dc` |
+| 🚗 | Transport / Đi lại | `tr`, `dl` |
+| 🎮 | Entertainment / Giải trí | `ent`, `gt` |
+| 📦 | Miscellaneous / Linh tinh | `mis`, `lt` |
+| 🔄 | Subscription / Đăng ký | `sub`, `dk` |
+| 🏠 | Housing / Nhà ở | `hou`, `no` |
+| 💆 | Personal Care / Chăm sóc | `pc`, `cs` |
+| 🏥 | Healthcare / Sức khỏe | `hc`, `sk` |
+| 👕 | Clothing / Quần áo | `clo`, `qa` |
+| 📚 | Education / Giáo dục | `edu`, `hoc` |
+| 💻 | Tech / Công nghệ | `tech`, `cn` |
+| ✈️ | Travel / Du lịch | `tv`, `dul` |
+| 🎁 | Present / Quà tặng | `pre`, `qt` |
+| 🎊 | Life Events / Hiếu hỉ | `le`, `hh` |
+| ❤️ | Lover / Người yêu | `lov`, `ny` |
+| 👨‍👩‍👧‍👦 | Family / Gia đình | `fam`, `gd` |
+| 💸 | Lost Money / Mất tiền | `lm`, `mat` |
 
 ---
 
 ## Installation
-
-To install ExpenseMate Telegram Chatbot, follow these steps:
 
 1. Clone the repository: `git clone <repository-url>`
 2. Install dependencies: `go mod download`
-3. Build the project: `go build`
+3. Configure environment variables (see [installation guide](docs/installation/installation.md))
+4. Build: `go build ./cmd/bot/`
+5. Run: `./bot`
 
 ---
 
-## Usage
+## Google Sheets Setup
 
-To use ExpenseMate Telegram Chatbot, follow these steps:
-
-1. Start the bot by running the executable.
-2. Interact with the bot using the supported commands listed above.
-
----
-
-## Installation
-
-- Please follow the [installation guide](docs/installation/installation.md) to install the bot for your own use.
+1. Clone the [template spreadsheet](https://docs.google.com/spreadsheets/d/16jOEcyvHiHzW1GdRBvhHEadECojq0g3tzBT3a2MoLnI)
+2. Use `/gsheets` in the bot and tap **Configure**
+3. Paste your Google Sheets URL
+4. Share **Editing access** with: `housematee-gsheets@housematee.iam.gserviceaccount.com`
 
 ---
 
 ## Contributing
 
-Contributions are welcome! To contribute to ExpenseMate Telegram Chatbot, follow these steps:
-
-1. Fork the repository.
-2. Create a new branch: `git checkout -b feature-branch`
-3. Make your changes and commit them: `git commit -am 'Add new feature'`
-4. Push to the branch: `git push origin feature-branch`
-5. Submit a pull request.
+1. Fork the repository
+2. Create a branch: `git checkout -b feature-branch`
+3. Commit changes: `git commit -am 'Add new feature'`
+4. Push: `git push origin feature-branch`
+5. Submit a pull request
 
 ---
 

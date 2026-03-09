@@ -16,6 +16,7 @@ const (
 	ExpenseActionViewMore    ExpenseAction = "viewmore"
 	ExpenseActionSetGroup    ExpenseAction = "setgrp"
 	ExpenseActionSetCategory ExpenseAction = "setcat"
+	ExpenseActionBudget      ExpenseAction = "budget"
 )
 
 func (a ExpenseAction) String() string {
@@ -119,13 +120,13 @@ func GetAllGroups() []Group {
 
 // groupShortNames maps groups to short display names for buttons
 var groupShortNames = map[Group]string{
-	GroupIncome:        "Income",
-	GroupInvestmentOut: "Invest Out",
-	GroupMustHave:      "Must Have",
-	GroupNiceToHave:    "Nice to Have",
-	GroupWaste:         "Waste",
-	GroupFamily:        "Family",
-	GroupLover:         "Lover",
+	GroupIncome:        "💰 Income",
+	GroupInvestmentOut: "📈 Invest Out",
+	GroupMustHave:      "🔒 Must Have",
+	GroupNiceToHave:    "✨ Nice to Have",
+	GroupWaste:         "🗑 Waste",
+	GroupFamily:        "👨‍👩‍👧‍👦 Family",
+	GroupLover:         "❤️ Lover",
 }
 
 // groupAliasForCallback maps groups to their short alias for callbacks
@@ -329,24 +330,24 @@ var categoryAliases = map[string]Category{
 
 // categoryShortNames maps categories to short display names for buttons
 var categoryShortNames = map[Category]string{
-	CategoryFood:          "Food / Ăn ngoài",
-	CategoryGroceries:     "Groceries / Đi chợ",
-	CategoryTransport:     "Transport / Đi lại",
-	CategoryEntertainment: "Ent / Giải trí",
-	CategoryMiscellaneous: "Misc / Linh tinh",
-	CategorySubscription:  "Sub / Đăng ký",
-	CategoryHousing:       "Housing / Nhà ở",
-	CategoryPersonalCare:  "Personal / Chăm sóc",
-	CategoryHealthcare:    "Health / Sức khỏe",
-	CategoryClothing:      "Clothing / Quần áo",
-	CategoryEducation:     "Edu / Giáo dục",
-	CategoryTech:          "Tech / Công nghệ",
-	CategoryTravel:        "Travel / Du lịch",
-	CategoryPresent:       "Present / Quà tặng",
-	CategoryLifeEvents:    "Events / Hiếu hỉ",
-	CategoryLover:         "Lover / Người yêu",
-	CategoryFamily:        "Family / Gia đình",
-	CategoryLostMoney:     "Lost / Mất tiền",
+	CategoryFood:          "🍜 Ăn ngoài",
+	CategoryGroceries:     "🛒 Đi chợ",
+	CategoryTransport:     "🚗 Đi lại",
+	CategoryEntertainment: "🎮 Giải trí",
+	CategoryMiscellaneous: "📦 Linh tinh",
+	CategorySubscription:  "🔄 Đăng ký",
+	CategoryHousing:       "🏠 Nhà ở",
+	CategoryPersonalCare:  "💆 Chăm sóc",
+	CategoryHealthcare:    "🏥 Sức khỏe",
+	CategoryClothing:      "👕 Quần áo",
+	CategoryEducation:     "📚 Giáo dục",
+	CategoryTech:          "💻 Công nghệ",
+	CategoryTravel:        "✈️ Du lịch",
+	CategoryPresent:       "🎁 Quà tặng",
+	CategoryLifeEvents:    "🎊 Hiếu hỉ",
+	CategoryLover:         "❤️ Người yêu",
+	CategoryFamily:        "👨‍👩‍👧‍👦 Gia đình",
+	CategoryLostMoney:     "💸 Mất tiền",
 }
 
 // categoryAliasForCallback maps categories to their short alias for callbacks

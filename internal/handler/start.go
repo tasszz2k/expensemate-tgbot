@@ -29,8 +29,9 @@ func (h *StartHandler) HandleStart(ctx context.Context, msg *tgbotapi.Message) (
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
 	reply.Text = fmt.Sprintf(
-		"Hello %s! I am Expensemate bot. I can help you manage your expenses.\n"+
-			"Please use /help to see the list of supported commands.", fullName,
+		"👋 Hello <b>%s</b>!\n\n"+
+			"I'm <b>Expensemate</b> — your personal expense tracker.\n"+
+			"Use /help to see available commands.", fullName,
 	)
 	return reply, nil
 }
@@ -41,16 +42,16 @@ func (h *StartHandler) HandleHelp(ctx context.Context, msg *tgbotapi.Message) (t
 	log.WithAction(logger, "help").Info("user requested help")
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
-	reply.Text = `I can help you manage your expenses. You can use the following commands:
+	reply.Text = `📖 <b>Available Commands:</b>
 
-/start - Start the bot
-/help - Show this help message
-/expenses - Manage your expenses
-/expenses_add - Quickly add an expense
-/expenses_help - View supported groups and categories
-/gsheets - Configure Google Sheets
-/settings - Configure the bot settings (Admin only)
-/feedback - Send feedback to the admin`
+💰 /expenses — Manage your expenses
+➕ /expenses_add — Quickly add an expense
+❓ /expenses_help — View groups and categories
+📊 /gsheets — Configure Google Sheets
+⚙️ /settings — Bot settings (Admin)
+💬 /feedback — Send feedback
+
+💡 <i>Budget management is available in /expenses → Budget</i>`
 	return reply, nil
 }
 
@@ -60,7 +61,7 @@ func (h *StartHandler) HandleSettings(ctx context.Context, msg *tgbotapi.Message
 	log.WithAction(logger, "settings").Info("user accessed settings")
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
-	reply.Text = "Settings are not yet implemented."
+	reply.Text = "🚧 Settings are not yet available."
 	return reply, nil
 }
 
@@ -70,13 +71,13 @@ func (h *StartHandler) HandleFeedback(ctx context.Context, msg *tgbotapi.Message
 	log.WithAction(logger, "feedback").Info("user accessed feedback")
 
 	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
-	reply.Text = "Feedback feature is not yet implemented."
+	reply.Text = "🚧 Feedback feature is coming soon."
 	return reply, nil
 }
 
 // HandleUnknown handles unknown commands
 func (h *StartHandler) HandleUnknown(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
 	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
-	reply.Text = "Unknown command. Please use /help to see the list of supported commands."
+	reply.Text = "❓ Unknown command. Use /help to see available commands."
 	return reply, nil
 }

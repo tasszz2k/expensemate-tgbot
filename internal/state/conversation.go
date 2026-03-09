@@ -7,6 +7,12 @@ import (
 	"expensemate-tgbot/internal/types"
 )
 
+// BudgetPendingData stores data for budget set flow
+type BudgetPendingData struct {
+	Col string // "K" for group, "Q" for category
+	Row int    // Sheet row index
+}
+
 // VoicePendingData stores data for voice clarification flow
 type VoicePendingData struct {
 	OriginalText string // The original transcribed text
@@ -20,16 +26,18 @@ type VoicePendingData struct {
 
 // Manager handles conversation state for users
 type Manager struct {
-	states           map[int64]string
-	voicePendingData map[int64]*VoicePendingData
-	mu               sync.RWMutex
+	states            map[int64]string
+	voicePendingData  map[int64]*VoicePendingData
+	budgetPendingData map[int64]*BudgetPendingData
+	mu                sync.RWMutex
 }
 
 // NewManager creates a new conversation state manager
 func NewManager() *Manager {
 	return &Manager{
-		states:           make(map[int64]string),
-		voicePendingData: make(map[int64]*VoicePendingData),
+		states:            make(map[int64]string),
+		voicePendingData:  make(map[int64]*VoicePendingData),
+		budgetPendingData: make(map[int64]*BudgetPendingData),
 	}
 }
 
@@ -39,6 +47,8 @@ const (
 	StateExpensesVoiceClarify    = "expenses:voice_clarify"
 	StateGSheetsConfig           = "gsheets:configure"
 	StateGSheetsUpdateActivePage = "gsheets:update_current_page"
+	StateBudgetSetGroupPrefix    = "budget:set_group:"
+	StateBudgetSetCategoryPrefix = "budget:set_category:"
 )
 
 // BuildState creates a state string from command and action
@@ -94,4 +104,25 @@ func (m *Manager) ClearVoicePendingData(chatID int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.voicePendingData, chatID)
+}
+
+// SetBudgetPendingData stores pending budget data
+func (m *Manager) SetBudgetPendingData(chatID int64, data *BudgetPendingData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.budgetPendingData[chatID] = data
+}
+
+// GetBudgetPendingData retrieves pending budget data
+func (m *Manager) GetBudgetPendingData(chatID int64) *BudgetPendingData {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.budgetPendingData[chatID]
+}
+
+// ClearBudgetPendingData clears pending budget data
+func (m *Manager) ClearBudgetPendingData(chatID int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.budgetPendingData, chatID)
 }

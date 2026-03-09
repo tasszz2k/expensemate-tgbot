@@ -41,11 +41,11 @@ func (h *GSheetsHandler) HandleGSheetsCommand(ctx context.Context, msg *tgbotapi
 	// Check if user has configured spreadsheet
 	spreadsheetURL, err := h.mappingService.GetSpreadsheetURL(ctx, types.ID(msg.From.ID))
 	if err != nil || spreadsheetURL == "" {
-		reply.Text = "You haven't configured a Google Sheets yet. Click Configure to set one up."
+		reply.Text = "📋 No Google Sheets configured yet.\nTap <b>Configure</b> to get started."
 		reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-				tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+				tgbotapi.NewInlineKeyboardButtonData("⚙️ Configure", "gsheets:configure"),
+				tgbotapi.NewInlineKeyboardButtonData("❓ Help", "gsheets:help"),
 			),
 		)
 		return reply, nil
@@ -53,21 +53,21 @@ func (h *GSheetsHandler) HandleGSheetsCommand(ctx context.Context, msg *tgbotapi
 
 	activePage, _ := h.mappingService.GetActivePage(ctx, types.ID(msg.From.ID))
 	if activePage != "" {
-		reply.Text = fmt.Sprintf("Your Google Sheets: %s\nActive page: <b>%s</b>", spreadsheetURL, activePage)
+		reply.Text = fmt.Sprintf("📊 <b>Google Sheets</b>\n\n📄 Active page: <b>%s</b>\n🔗 %s", activePage, spreadsheetURL)
 	} else {
-		reply.Text = fmt.Sprintf("Your Google Sheets: %s", spreadsheetURL)
+		reply.Text = fmt.Sprintf("📊 <b>Google Sheets</b>\n\n🔗 %s", spreadsheetURL)
 	}
 	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Configure", "gsheets:configure"),
-			tgbotapi.NewInlineKeyboardButtonURL("View", spreadsheetURL),
-			tgbotapi.NewInlineKeyboardButtonData("Help", "gsheets:help"),
+			tgbotapi.NewInlineKeyboardButtonData("⚙️ Configure", "gsheets:configure"),
+			tgbotapi.NewInlineKeyboardButtonURL("👀 View", spreadsheetURL),
+			tgbotapi.NewInlineKeyboardButtonData("❓ Help", "gsheets:help"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Create New Month", "gsheets:create_new_month"),
+			tgbotapi.NewInlineKeyboardButtonData("📅 Create New Month", "gsheets:create_new_month"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Update Active Page", "gsheets:update_current_page"),
+			tgbotapi.NewInlineKeyboardButtonData("📄 Update Active Page", "gsheets:update_current_page"),
 		),
 	)
 
@@ -80,8 +80,9 @@ func (h *GSheetsHandler) HandleConfigureCallback(ctx context.Context, cb *tgbota
 	log.WithAction(logger, "gsheets_configure").Info("starting configure flow")
 
 	reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")
-	reply.Text = `Please provide the URL of your Google Sheets.
-Example: https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit`
+	reply.Text = `🔗 Please provide your Google Sheets URL:
+
+<i>Example: https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit</i>`
 
 	h.stateManager.Start(cb.Message.Chat.ID, state.StateGSheetsConfig)
 
@@ -115,12 +116,12 @@ func (h *GSheetsHandler) HandleConfigure(ctx context.Context, msg *tgbotapi.Mess
 
 	h.stateManager.End(msg.Chat.ID)
 
-	reply.Text = `<b>Google Sheets configured successfully!</b>
+	reply.Text = `✅ <b>Google Sheets configured!</b>
 
-<b>Important:</b> Make sure to share <b>Editing access</b> with:
+⚠️ <b>Important:</b> Share <b>Editing access</b> with:
 <code>housematee-gsheets@housematee.iam.gserviceaccount.com</code>
 
-Use /expenses to start tracking your expenses.`
+Use /expenses to start tracking.`
 
 	return reply, nil
 }
@@ -133,15 +134,15 @@ func (h *GSheetsHandler) HandleHelpCallback(ctx context.Context, cb *tgbotapi.Ca
 	h.stateManager.End(cb.Message.Chat.ID)
 
 	reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")
-	reply.Text = `<b>Google Sheets Setup:</b>
+	reply.Text = `📖 <b>Google Sheets Setup</b>
 
-1. Clone template: <a href="https://docs.google.com/spreadsheets/d/16jOEcyvHiHzW1GdRBvhHEadECojq0g3tzBT3a2MoLnI">Template</a>
-2. Use /gsheets and click "Configure"
-3. Paste your Google Sheets URL
-4. Share <b>Editing access</b> with:
+1️⃣ Clone template: <a href="https://docs.google.com/spreadsheets/d/16jOEcyvHiHzW1GdRBvhHEadECojq0g3tzBT3a2MoLnI">Template</a>
+2️⃣ Use /gsheets → tap <b>Configure</b>
+3️⃣ Paste your Google Sheets URL
+4️⃣ Share <b>Editing access</b> with:
    <code>housematee-gsheets@housematee.iam.gserviceaccount.com</code>
 
-<i>This is a service account - no one else can access your data.</i>`
+🔒 <i>This is a service account — no one else can access your data.</i>`
 
 	return reply, nil
 }
@@ -161,18 +162,18 @@ func (h *GSheetsHandler) HandleUpdateActivePageCallback(ctx context.Context, cb 
 			return reply, nil
 		}
 		h.stateManager.End(cb.Message.Chat.ID)
-		reply.Text = fmt.Sprintf("Active page updated to: <b>%s</b>", pageName)
+		reply.Text = fmt.Sprintf("✅ Active page updated to: <b>%s</b>", pageName)
 		return reply, nil
 	}
 
 	currentMonth := time.Now().Format("2006_01")
-	reply.Text = fmt.Sprintf("Set active page to: <b>%s</b>?", currentMonth)
+	reply.Text = fmt.Sprintf("📄 Set active page to: <b>%s</b>?", currentMonth)
 	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Confirm", fmt.Sprintf("gsheets:update_current_page:%s", currentMonth)),
+			tgbotapi.NewInlineKeyboardButtonData("✅ Confirm", fmt.Sprintf("gsheets:update_current_page:%s", currentMonth)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Enter Manually", "gsheets:update_current_page_manual"),
+			tgbotapi.NewInlineKeyboardButtonData("✏️ Enter Manually", "gsheets:update_current_page_manual"),
 		),
 	)
 
@@ -194,7 +195,7 @@ func (h *GSheetsHandler) HandleUpdateActivePage(ctx context.Context, msg *tgbota
 	}
 
 	h.stateManager.End(msg.Chat.ID)
-	reply.Text = fmt.Sprintf("Active page updated to: <b>%s</b>", pageName)
+	reply.Text = fmt.Sprintf("✅ Active page updated to: <b>%s</b>", pageName)
 
 	return reply, nil
 }
@@ -207,7 +208,7 @@ func (h *GSheetsHandler) HandleManualPageInputCallback(ctx context.Context, cb *
 	reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")
 
 	currentMonth := time.Now().Format("2006_01")
-	reply.Text = fmt.Sprintf("Enter a page name (e.g., <b>%s</b>):", currentMonth)
+	reply.Text = fmt.Sprintf("✏️ Enter a page name (e.g., <b>%s</b>):", currentMonth)
 	h.stateManager.Start(cb.Message.Chat.ID, state.StateGSheetsUpdateActivePage)
 
 	return reply, nil
@@ -227,7 +228,12 @@ func (h *GSheetsHandler) HandleCreateNewMonthCallback(ctx context.Context, cb *t
 			reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
 			return reply, nil
 		}
-		reply.Text = fmt.Sprintf("<b>Sheet %s created successfully!</b>\n\nActive page has been updated.", newSheet)
+		sheetURL, _ := h.mappingService.GetSpreadsheetURL(ctx, types.ID(cb.From.ID))
+		if sheetURL != "" {
+			reply.Text = fmt.Sprintf("✅ <b>Sheet %s created!</b>\n\nActive page has been updated.\n\n<a href=\"%s\">View in Google Sheets</a>", newSheet, sheetURL)
+		} else {
+			reply.Text = fmt.Sprintf("✅ <b>Sheet %s created!</b>\n\nActive page has been updated.", newSheet)
+		}
 		return reply, nil
 	}
 
@@ -245,18 +251,18 @@ func (h *GSheetsHandler) HandleCreateNewMonthCallback(ctx context.Context, cb *t
 	}
 
 	reply.Text = fmt.Sprintf(
-		"Create new sheet <b>%s</b> from <b>%s</b>?\n\n"+
+		"📅 Create new sheet <b>%s</b> from <b>%s</b>?\n\n"+
 			"This will:\n"+
-			"- Duplicate the current sheet\n"+
-			"- Clear salary and expense data\n"+
-			"- Update investment formulas\n"+
-			"- Snapshot assets as last month's data\n"+
-			"- Set the new sheet as active",
+			"• Duplicate the current sheet\n"+
+			"• Clear salary and expense data\n"+
+			"• Update investment formulas\n"+
+			"• Snapshot assets as last month's data\n"+
+			"• Set the new sheet as active",
 		nextMonth, currentPage,
 	)
 	reply.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Confirm", "gsheets:create_new_month:confirm"),
+			tgbotapi.NewInlineKeyboardButtonData("✅ Confirm", "gsheets:create_new_month:confirm"),
 		),
 	)
 
@@ -282,7 +288,7 @@ func (h *GSheetsHandler) HandleCallback(ctx context.Context, cb *tgbotapi.Callba
 	default:
 		h.stateManager.End(cb.Message.Chat.ID)
 		reply := tgbotapi.NewMessage(cb.Message.Chat.ID, "")
-		reply.Text = "This action is not yet implemented."
+		reply.Text = "🚧 This action is not yet available."
 		return reply, nil
 	}
 }

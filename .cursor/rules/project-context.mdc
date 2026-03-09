@@ -109,16 +109,20 @@ Each user has their own spreadsheet with monthly sheets.
 - Row 3: Header row
 - Rows 4-9: Fixed entries (salary, investments) -- preserved across months
 - Row 10+: Regular expense data
-- `I3:J9`: Group report
-- `L3:N15`: Category report
+- `I3:J10`: Group report (8 rows: INCOME, INVESTMENT OUT, INVESTMENT PROFIT, MUST HAVE, NICE TO HAVE, WASTED, FAMILY, LOVER)
+- `K3:K10`: Group budget caps
+- `L3:L10`: Group remaining (formula: budget - spent)
+- `N3:P21`: Category report (19 rows)
+- `Q3:Q21`: Category budget caps
+- `R3:R21`: Category remaining (formula: budget - spent)
 
-**Asset Section (P:Q):**
-- `P2:Q9`: Current month asset breakdown (Total, Cash, Bank, eWallet, Saving, Investment, Lending, Debt)
-- `P17:Q24`: Last month's asset snapshot (copied during new month creation)
+**Asset Section (T:U):**
+- `T2:U9`: Current month asset breakdown (Total, Cash, Bank, eWallet, Saving, Investment, Lending, Debt)
+- `T17:U24`: Last month's asset snapshot (copied during new month creation)
 
 **Investment Formulas:**
 - `C5:C9`: Formulas comparing investment values with previous month (e.g., `=AE4-'2026_02'!AE4`)
-- `AB16:AB30`: Investment notes
+- `AF16:AF30`: Investment notes
 
 ---
 
@@ -135,17 +139,21 @@ DatabaseSheetName      = "Database"
 DatabaseActivePageCell = "B2"
 ExpensesNextIDCell     = "B2"
 ExpensesTopRow         = 3
-ExpensesReportRange    = "I3:J9"
-ExpensesCategoryRange  = "L3:N21"
+ExpensesReportRange          = "I3:J10"
+ExpensesCategoryRange        = "N3:P21"
+GroupBudgetCol               = "K"
+CategoryBudgetCol            = "Q"
+GroupReportWithBudgetRange   = "I3:L10"
+CategoryReportWithBudgetRange = "N3:R21"
 
 // New month sheet creation
 ExpenseDataStartRow    = 10
 NewMonthNextExpenseID  = 10
 SalaryCellRef          = "C4"
 InvestmentFormulaRange = "C5:C9"
-InvestmentNoteRange    = "AB16:AB30"
-AssetCurrentRange      = "P2:Q9"
-AssetLastMonthRange    = "P17:Q24"
+InvestmentNoteRange    = "AF16:AF30"
+AssetCurrentRange      = "T2:U9"
+AssetLastMonthRange    = "T17:U24"
 SheetNameCell          = "A1"
 ```
 
@@ -162,6 +170,16 @@ type Expense struct {
     Category types.Category
     Date     time.Time
     Note     string
+}
+
+type BudgetEntry struct {
+    Name       string
+    Spent      int64
+    Percentage string
+    Budget     int64
+    Remaining  int64
+    HasBudget  bool
+    Row        int
 }
 
 type UserSheetMapping struct {
@@ -291,6 +309,8 @@ openai:
 |-------|-------------|
 | `expenses:add` | Waiting for expense input |
 | `expenses:voice_clarify` | Waiting for voice expense clarification |
+| `budget:set_group:{row}` | Waiting for group budget amount |
+| `budget:set_category:{row}` | Waiting for category budget amount |
 | `gsheets:configure` | Waiting for Google Sheets URL |
 | `gsheets:update_current_page` | Waiting for active page name |
 
@@ -305,6 +325,7 @@ openai:
 | /expenses | ExpenseHandler.HandleExpensesCommand | Expense menu |
 | /expenses_add | ExpenseHandler.HandleExpensesAddCommand | Add expense |
 | /expenses_help | ExpenseHandler.HandleExpensesHelp | Groups/categories |
+| /budget | ExpenseHandler.HandleBudgetCommand | Budget management menu |
 | /gsheets | GSheetsHandler.HandleGSheetsCommand | Configure sheets, create new month |
 | /settings | StartHandler.HandleSettings | Settings (not impl) |
 | /feedback | StartHandler.HandleFeedback | Feedback (not impl) |
@@ -322,6 +343,13 @@ openai:
 | `expenses:setgrp:{id}:{alias}:{needsCat}` | handleSetGroupCallback | Set expense group |
 | `expenses:setcat:{id}:{alias}` | handleSetCategoryCallback | Set expense category |
 | `expenses:qdel:{id}` | handleQuickDeleteCallback | Quick delete expense |
+| `expenses:budget` | handleBudgetCallback | Budget menu |
+| `expenses:budget:view` | handleBudgetView | View budget overview |
+| `expenses:budget:setgrp` | handleBudgetSetGroup | Select group to set budget |
+| `expenses:budget:setgrp:{row}` | handleBudgetSetGroup | Prompt for group budget amount |
+| `expenses:budget:setcat` | handleBudgetSetCategory | Select category to set budget |
+| `expenses:budget:setcat:{row}` | handleBudgetSetCategory | Prompt for category budget amount |
+| `expenses:budget:back` | handleBudgetMenu | Return to budget menu |
 
 ### Google Sheets Deep Links
 
@@ -349,8 +377,8 @@ Automates monthly sheet creation via `/gsheets` > "Create New Month":
 3. On confirm, executes 13 steps:
    - Duplicate sheet with new name
    - Update A1 label
-   - Snapshot assets P2:Q9 to P17:Q24 (unformatted values)
-   - Clear salary (C4), expense data (rows 10+), investment notes (AB16:AB30)
+   - Snapshot assets T2:U9 to T17:U24 (unformatted values)
+   - Clear salary (C4), expense data (rows 10+), investment notes (AF16:AF30)
    - Reset next expense ID (B2 = 10)
    - Update investment formulas C5:C9 (replace previous month reference)
    - Set new sheet as active page

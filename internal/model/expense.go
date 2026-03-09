@@ -154,10 +154,10 @@ func ParseTextToExpense(text string) (ParseResult, error) {
 func (e Expense) FormatHTML() string {
 	// Base fields
 	result := fmt.Sprintf(
-		`<b>ID</b>: <i>%d</i>
-<b>Name</b>: <i>%s</i>
-<b>Amount</b>: <i>%s</i>
-<b>Group</b>: <i>%s</i>`,
+		`🆔 <i>%d</i>
+📝 <i>%s</i>
+💵 <b>%s</b>
+💼 <i>%s</i>`,
 		e.ID,
 		e.Name,
 		currency.FormatVND(e.Amount),
@@ -166,16 +166,14 @@ func (e Expense) FormatHTML() string {
 
 	// Only show category if this group type needs it (not Income/Investment Out)
 	if e.Group.NeedsCategory() {
-		result += fmt.Sprintf("\n<b>Category</b>: <i>%s</i>", e.Category)
+		result += fmt.Sprintf("\n📂 <i>%s</i>", e.Category)
 	}
 
 	// Add date and note
-	result += fmt.Sprintf(`
-<b>Date</b>: <i>%s</i>
-<b>Note</b>: <i>%s</i>`,
-		timepkg.FormatDateOnly(e.Date),
-		e.Note,
-	)
+	result += fmt.Sprintf("\n📅 <i>%s</i>", timepkg.FormatDateOnly(e.Date))
+	if e.Note != "" {
+		result += fmt.Sprintf("\n🗒 <i>%s</i>", e.Note)
+	}
 
 	return result
 }

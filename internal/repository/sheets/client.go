@@ -41,6 +41,19 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	return &Client{svc: svc}, nil
 }
 
+// BatchGet reads values from multiple ranges in a single API call
+func (c *Client) BatchGet(ctx context.Context, spreadsheetID string, ranges []string) ([]*sheets.ValueRange, error) {
+	resp, err := c.svc.Spreadsheets.Values.BatchGet(spreadsheetID).
+		Ranges(ranges...).
+		ValueRenderOption("UNFORMATTED_VALUE").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("batch reading ranges %v: %w", ranges, err)
+	}
+	return resp.ValueRanges, nil
+}
+
 // Get reads values from a spreadsheet range
 func (c *Client) Get(ctx context.Context, spreadsheetID, readRange string) (*sheets.ValueRange, error) {
 	resp, err := c.svc.Spreadsheets.Values.Get(spreadsheetID, readRange).Context(ctx).Do()

@@ -15,6 +15,7 @@ const (
 	CommandExpenses    Command = "expenses"
 	CommandExpenseAdd  Command = "expenses_add"
 	CommandExpenseHelp Command = "expenses_help"
+	CommandBudget     Command = "budget"
 )
 
 // ParseCallbackData parses callback data and returns command and sub-commands.

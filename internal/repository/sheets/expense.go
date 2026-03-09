@@ -165,6 +165,24 @@ func (r *ExpenseRepository) GetGroupReport(ctx context.Context, spreadsheetID, s
 	return resp.Values, nil
 }
 
+// GetGroupReportWithBudget reads the group report with budget data (range I3:L10)
+func (r *ExpenseRepository) GetGroupReportWithBudget(ctx context.Context, spreadsheetID, sheetName string) ([]model.BudgetEntry, error) {
+	readRange := types.BuildRange(sheetName, types.GroupReportWithBudgetRange)
+	resp, err := r.client.GetUnformatted(ctx, spreadsheetID, readRange)
+	if err != nil {
+		return nil, fmt.Errorf("reading group report with budget: %w", err)
+	}
+
+	var entries []model.BudgetEntry
+	for i, row := range resp.Values {
+		entry := model.ParseGroupBudgetRow(row, 3+i) // rows start at 3
+		if entry.Name != "" {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, nil
+}
+
 // GetCategoryReport retrieves the category-based expense report
 func (r *ExpenseRepository) GetCategoryReport(ctx context.Context, spreadsheetID, sheetName string) ([][]interface{}, error) {
 	readRange := types.BuildRange(sheetName, types.ExpensesCategoryRange)
@@ -173,6 +191,36 @@ func (r *ExpenseRepository) GetCategoryReport(ctx context.Context, spreadsheetID
 		return nil, fmt.Errorf("reading category report: %w", err)
 	}
 	return resp.Values, nil
+}
+
+// GetCategoryReportWithBudget reads the category report with budget data (range N3:R21)
+func (r *ExpenseRepository) GetCategoryReportWithBudget(ctx context.Context, spreadsheetID, sheetName string) ([]model.BudgetEntry, error) {
+	readRange := types.BuildRange(sheetName, types.CategoryReportWithBudgetRange)
+	resp, err := r.client.GetUnformatted(ctx, spreadsheetID, readRange)
+	if err != nil {
+		return nil, fmt.Errorf("reading category report with budget: %w", err)
+	}
+
+	var entries []model.BudgetEntry
+	for i, row := range resp.Values {
+		entry := model.ParseCategoryBudgetRow(row, 3+i) // rows start at 3
+		if entry.Name != "" {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, nil
+}
+
+// SetBudget writes a budget amount to a specific cell (column K for groups, Q for categories)
+func (r *ExpenseRepository) SetBudget(ctx context.Context, spreadsheetID, sheetName, col string, row int, amount uint64) error {
+	writeRange := fmt.Sprintf("%s!%s%d", sheetName, col, row)
+	return r.client.Update(ctx, spreadsheetID, writeRange, [][]interface{}{{amount}})
+}
+
+// ClearBudget clears a budget cell
+func (r *ExpenseRepository) ClearBudget(ctx context.Context, spreadsheetID, sheetName, col string, row int) error {
+	clearRange := fmt.Sprintf("%s!%s%d", sheetName, col, row)
+	return r.client.ClearValues(ctx, spreadsheetID, clearRange)
 }
 
 // UpdateCategory updates only the category column for an expense
