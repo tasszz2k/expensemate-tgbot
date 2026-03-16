@@ -375,55 +375,61 @@ func (s *ExpenseService) GetReport(ctx context.Context, userID types.ID) (groupR
 	return groupReport, categoryReport, sheetURL, nil
 }
 
-// GetBudgetOverview returns all group and category budget entries with the sheet URL.
-func (s *ExpenseService) GetBudgetOverview(ctx context.Context, userID types.ID) (groups []model.BudgetEntry, categories []model.BudgetEntry, spreadsheetURL string, err error) {
+// GetBudgetOverview returns all group and category budget entries, summary rows, and the sheet URL.
+func (s *ExpenseService) GetBudgetOverview(ctx context.Context, userID types.ID) (groups, categories, summary []model.BudgetEntry, spreadsheetURL string, err error) {
 	mapping, err := s.mappingService.GetByUserID(ctx, userID)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("getting user mapping: %w", err)
+		return nil, nil, nil, "", fmt.Errorf("getting user mapping: %w", err)
 	}
 	if mapping == nil {
-		return nil, nil, "", fmt.Errorf("no spreadsheet configured for user %d", userID)
+		return nil, nil, nil, "", fmt.Errorf("no spreadsheet configured for user %d", userID)
 	}
 
 	spreadsheetID := mapping.SpreadsheetDocID()
 	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("getting active page: %w", err)
+		return nil, nil, nil, "", fmt.Errorf("getting active page: %w", err)
 	}
 
 	groups, err = s.repo.GetGroupReportWithBudget(ctx, spreadsheetID, activePage)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("getting group budgets: %w", err)
+		return nil, nil, nil, "", fmt.Errorf("getting group budgets: %w", err)
 	}
 
 	categories, err = s.repo.GetCategoryReportWithBudget(ctx, spreadsheetID, activePage)
 	if err != nil {
-		return nil, nil, "", fmt.Errorf("getting category budgets: %w", err)
+		return nil, nil, nil, "", fmt.Errorf("getting category budgets: %w", err)
+	}
+
+	summary, err = s.repo.GetExpenseSummary(ctx, spreadsheetID, activePage)
+	if err != nil {
+		log.Warn("failed to read expense summary", logrus.Fields{"error": err.Error()})
+		summary = nil
 	}
 
 	sheetURL := s.buildSheetURL(ctx, spreadsheetID, activePage, mapping.SpreadSheetsURL)
-	return groups, categories, sheetURL, nil
+	return groups, categories, summary, sheetURL, nil
 }
 
-// GetBudgetForExpense returns budget entries for a specific group and category (used after adding an expense).
-func (s *ExpenseService) GetBudgetForExpense(ctx context.Context, userID types.ID, group types.Group, category types.Category) (groupBudget *model.BudgetEntry, categoryBudget *model.BudgetEntry, err error) {
+// GetBudgetForExpense returns budget entries for a specific group and category, plus the "Total Expenses" summary entry.
+func (s *ExpenseService) GetBudgetForExpense(ctx context.Context, userID types.ID, group types.Group, category types.Category) (groupBudget, categoryBudget, totalExpenses *model.BudgetEntry, err error) {
 	mapping, err := s.mappingService.GetByUserID(ctx, userID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("getting user mapping: %w", err)
+		return nil, nil, nil, fmt.Errorf("getting user mapping: %w", err)
 	}
 	if mapping == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	spreadsheetID := mapping.SpreadsheetDocID()
 	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("getting active page: %w", err)
+		return nil, nil, nil, fmt.Errorf("getting active page: %w", err)
 	}
 
 	groups, err := s.repo.GetGroupReportWithBudget(ctx, spreadsheetID, activePage)
 	if err != nil {
-		return nil, nil, fmt.Errorf("getting group budgets: %w", err)
+		return nil, nil, nil, fmt.Errorf("getting group budgets: %w", err)
 	}
 
 	for i := range groups {
@@ -436,7 +442,7 @@ func (s *ExpenseService) GetBudgetForExpense(ctx context.Context, userID types.I
 	if group.NeedsCategory() {
 		categories, err := s.repo.GetCategoryReportWithBudget(ctx, spreadsheetID, activePage)
 		if err != nil {
-			return groupBudget, nil, fmt.Errorf("getting category budgets: %w", err)
+			return groupBudget, nil, nil, fmt.Errorf("getting category budgets: %w", err)
 		}
 
 		for i := range categories {
@@ -447,7 +453,17 @@ func (s *ExpenseService) GetBudgetForExpense(ctx context.Context, userID types.I
 		}
 	}
 
-	return groupBudget, categoryBudget, nil
+	summary, err := s.repo.GetExpenseSummary(ctx, spreadsheetID, activePage)
+	if err == nil {
+		for i := range summary {
+			if summary[i].Name == "Total Expenses" && summary[i].HasBudget {
+				totalExpenses = &summary[i]
+				break
+			}
+		}
+	}
+
+	return groupBudget, categoryBudget, totalExpenses, nil
 }
 
 // SetBudget sets a budget value for a group or category.

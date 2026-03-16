@@ -211,6 +211,25 @@ func (r *ExpenseRepository) GetCategoryReportWithBudget(ctx context.Context, spr
 	return entries, nil
 }
 
+// GetExpenseSummary reads the summary rows (I11:L13) and parses them using ParseGroupBudgetRow.
+// Returns entries for Self Expenses, Total Expenses, and Net Change.
+func (r *ExpenseRepository) GetExpenseSummary(ctx context.Context, spreadsheetID, sheetName string) ([]model.BudgetEntry, error) {
+	readRange := types.BuildRange(sheetName, types.ExpensesSummaryRange)
+	resp, err := r.client.GetUnformatted(ctx, spreadsheetID, readRange)
+	if err != nil {
+		return nil, fmt.Errorf("reading expense summary: %w", err)
+	}
+
+	var entries []model.BudgetEntry
+	for i, row := range resp.Values {
+		entry := model.ParseGroupBudgetRow(row, 11+i)
+		if entry.Name != "" {
+			entries = append(entries, entry)
+		}
+	}
+	return entries, nil
+}
+
 // SetBudget writes a budget amount to a specific cell (column K for groups, Q for categories)
 func (r *ExpenseRepository) SetBudget(ctx context.Context, spreadsheetID, sheetName, col string, row int, amount uint64) error {
 	writeRange := fmt.Sprintf("%s!%s%d", sheetName, col, row)

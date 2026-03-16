@@ -48,6 +48,7 @@ const (
 	GroupBudgetCol                = "K"
 	CategoryBudgetCol             = "Q"
 	GroupReportWithBudgetRange    = "I3:L10"
+	ExpensesSummaryRange          = "I11:L13"
 	CategoryReportWithBudgetRange = "N3:R22"
 
 	// New month sheet creation

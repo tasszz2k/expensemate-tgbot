@@ -57,6 +57,16 @@ func (e BudgetEntry) FormatShortBudgetLine() string {
 	return fmt.Sprintf("🔴 %s <b>%s</b>/%s ⚠️", e.Name, spentStr, budgetStr)
 }
 
+// FormatTotalLine formats a compact total line for after-add display (e.g. "💰 This month: 646k / 13.4m").
+func (e BudgetEntry) FormatTotalLine() string {
+	spentStr := currency.FormatVND(types.Unsigned(abs64(e.Spent)))
+	if !e.HasBudget {
+		return fmt.Sprintf("💰 This month: <b>%s</b>", spentStr)
+	}
+	budgetStr := currency.FormatVND(types.Unsigned(e.Budget))
+	return fmt.Sprintf("💰 This month: <b>%s</b> / %s", spentStr, budgetStr)
+}
+
 func abs64(x int64) int64 {
 	if x < 0 {
 		return -x

@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Amounts >= 1M and divisible by 100k shown in millions (e.g., `6.9m`, `32m`)
   - Amounts >= 1k shown in truncated thousands (e.g., `516k`, `6,383k`)
   - Small amounts shown exact with dong symbol (e.g., `1 ₫`)
+- Monthly spending summary in report and after-add response (Self Expenses, Total Expenses, Net Change from rows I11:L13)
+  - Summary section shown in Expense Report and Budget Overview after categories
+  - "This month" total line appended to after-add budget status
+  - `FormatTotalLine()` method on `BudgetEntry` for compact display
+- Category-specific icons in expense view (e.g., food shows fork, cafe shows coffee cup instead of generic money bag)
 - Unit tests for `FormatVND` compact currency formatting
 - Budget (Expense Plan) feature for setting monthly spending caps per group and category
   - `/budget` standalone command for quick access to budget management
@@ -52,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Budget status now shown for voice expenses and voice clarification responses
 
 ### Changed
+- Zero-spent budget entries hidden from Expense Report to reduce clutter
 - Column layout shifted for budget columns: categories report N3:P21 (+2), assets T2:U9 (+4), investment notes AF16:AF30 (+4)
 - Expense report formatting: non-zero amounts shown in bold, zero amounts shown with muted bullet
 - Expense view formatting: amounts shown in bold with dash separator

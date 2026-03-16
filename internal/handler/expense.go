@@ -126,8 +126,8 @@ func (h *ExpenseHandler) HandleExpensesAdd(ctx context.Context, msg *tgbotapi.Me
 	reply.Text = fmt.Sprintf("✅ <b>Expense added!</b>\n\n%s", expense.FormatHTML())
 
 	// Append budget status if budgets exist
-	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
-	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
+	groupBudget, categoryBudget, totalExpenses, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget, totalExpenses)
 	if budgetLine != "" {
 		reply.Text += "\n\n" + budgetLine
 	}
@@ -266,8 +266,12 @@ func (h *ExpenseHandler) buildExpensesView(ctx context.Context, chatID int64, us
 
 	text := "📋 <b>Recent Expenses:</b>\n\n"
 	for _, e := range expenses {
-		text += fmt.Sprintf("💰 <b>%d.</b> %s — <b>%s</b> (%s)\n",
-			e.ID, e.Name, currency.FormatVND(e.Amount), timepkg.FormatDateOnly(e.Date))
+		icon := reportEmojiByName[string(e.Category)]
+		if icon == "" {
+			icon = "💰"
+		}
+		text += fmt.Sprintf("%s <b>%d.</b> %s — <b>%s</b> (%s)\n",
+			icon, e.ID, e.Name, currency.FormatVND(e.Amount), timepkg.FormatDateOnly(e.Date))
 	}
 	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View all in Google Sheets</a>", spreadsheetURL)
 
@@ -295,7 +299,7 @@ func (h *ExpenseHandler) HandleExpensesReport(ctx context.Context, chatID int64,
 
 	reply := tgbotapi.NewMessage(chatID, "")
 
-	groups, categories, spreadsheetURL, err := h.expenseService.GetBudgetOverview(ctx, types.ID(userID))
+	groups, categories, summary, spreadsheetURL, err := h.expenseService.GetBudgetOverview(ctx, types.ID(userID))
 	if err != nil {
 		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
 		return reply, nil
@@ -307,6 +311,27 @@ func (h *ExpenseHandler) HandleExpensesReport(ctx context.Context, chatID int64,
 
 	text += "\n📂 <b>By Category:</b>\n"
 	text += sortedReportLines(categories, "🔹")
+
+	if len(summary) > 0 {
+		text += "\n💰 <b>Summary:</b>\n"
+		for _, s := range summary {
+			if s.Name == "" {
+				continue
+			}
+			spentStr := currency.FormatVND(types.Unsigned(abs64(s.Spent)))
+			if s.HasBudget {
+				budgetStr := currency.FormatVND(types.Unsigned(s.Budget))
+				remainStr := currency.FormatVND(types.Unsigned(abs64(s.Remaining)))
+				if s.Remaining >= 0 {
+					text += fmt.Sprintf("  %s: <b>%s</b> / %s (%s left)\n", s.Name, spentStr, budgetStr, remainStr)
+				} else {
+					text += fmt.Sprintf("  %s: <b>%s</b> / %s (⚠️ OVER %s)\n", s.Name, spentStr, budgetStr, remainStr)
+				}
+			} else {
+				text += fmt.Sprintf("  %s: <b>%s</b>\n", s.Name, spentStr)
+			}
+		}
+	}
 
 	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View full report in Google Sheets</a>", spreadsheetURL)
 
@@ -521,8 +546,8 @@ func (h *ExpenseHandler) buildFinalExpenseResponse(ctx context.Context, userID, 
 
 	text := fmt.Sprintf("✅ <b>Expense saved!</b>\n%s%s", formatTranscriptionHTML(transcription), expense.FormatHTML())
 
-	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(userID), expense.Group, expense.Category)
-	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
+	groupBudget, categoryBudget, totalExpenses, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(userID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget, totalExpenses)
 	if budgetLine != "" {
 		text += "\n\n" + budgetLine
 	}
@@ -777,8 +802,8 @@ func (h *ExpenseHandler) HandleVoiceExpense(ctx context.Context, msg *tgbotapi.M
 	// the category from context, and the user should be able to confirm or change it
 	needsCategory := expense.Group.NeedsCategory()
 
-	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
-	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
+	groupBudget, categoryBudget, totalExpenses, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget, totalExpenses)
 
 	reply.Text = fmt.Sprintf("🎤 <b>Voice expense added!</b>\n\n🗣 <i>\"%s\"</i>\n\n%s",
 		result.TranscribedText, expense.FormatHTML())
@@ -858,8 +883,8 @@ func (h *ExpenseHandler) HandleVoiceClarification(ctx context.Context, msg *tgbo
 	// the category from context, and the user should be able to confirm or change it
 	needsCategory := expense.Group.NeedsCategory()
 
-	groupBudget, categoryBudget, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
-	budgetLine := formatBudgetStatus(groupBudget, categoryBudget)
+	groupBudget, categoryBudget, totalExpenses, _ := h.expenseService.GetBudgetForExpense(ctx, types.ID(msg.From.ID), expense.Group, expense.Category)
+	budgetLine := formatBudgetStatus(groupBudget, categoryBudget, totalExpenses)
 
 	reply.Text = fmt.Sprintf("🎤 <b>Voice expense added!</b>\n\n%s", expense.FormatHTML())
 	if budgetLine != "" {
@@ -942,7 +967,7 @@ func sortedReportLines(entries []model.BudgetEntry, noBudgetIcon string) string 
 	}
 
 	var result string
-	for _, lines := range [][]string{over, active, noBudget, empty} {
+	for _, lines := range [][]string{over, active, noBudget} {
 		for _, line := range lines {
 			result += line + "\n"
 		}
@@ -979,13 +1004,16 @@ func abs64(x int64) int64 {
 }
 
 // formatBudgetStatus formats budget status for after-add display.
-func formatBudgetStatus(groupBudget, categoryBudget *model.BudgetEntry) string {
+func formatBudgetStatus(groupBudget, categoryBudget, totalExpenses *model.BudgetEntry) string {
 	var parts []string
 	if groupBudget != nil {
 		parts = append(parts, groupBudget.FormatShortBudgetLine())
 	}
 	if categoryBudget != nil {
 		parts = append(parts, categoryBudget.FormatShortBudgetLine())
+	}
+	if totalExpenses != nil {
+		parts = append(parts, totalExpenses.FormatTotalLine())
 	}
 	if len(parts) == 0 {
 		return ""
@@ -1069,7 +1097,7 @@ func (h *ExpenseHandler) handleBudgetMenu(ctx context.Context, chatID int64, mes
 }
 
 func (h *ExpenseHandler) handleBudgetView(ctx context.Context, chatID int64, messageID int, userID int64) (Response, error) {
-	groups, categories, sheetURL, err := h.expenseService.GetBudgetOverview(ctx, types.ID(userID))
+	groups, categories, summary, sheetURL, err := h.expenseService.GetBudgetOverview(ctx, types.ID(userID))
 	if err != nil {
 		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
 	}
@@ -1141,6 +1169,27 @@ func (h *ExpenseHandler) handleBudgetView(ctx context.Context, chatID int64, mes
 		}
 		for _, line := range catLinesEmpty {
 			text += line + "\n"
+		}
+	}
+
+	if len(summary) > 0 {
+		text += "\n💰 <b>Summary:</b>\n"
+		for _, s := range summary {
+			if s.Name == "" {
+				continue
+			}
+			spentStr := currency.FormatVND(types.Unsigned(abs64(s.Spent)))
+			if s.HasBudget {
+				budgetStr := currency.FormatVND(types.Unsigned(s.Budget))
+				remainStr := currency.FormatVND(types.Unsigned(abs64(s.Remaining)))
+				if s.Remaining >= 0 {
+					text += fmt.Sprintf("  %s: <b>%s</b> / %s (%s left)\n", s.Name, spentStr, budgetStr, remainStr)
+				} else {
+					text += fmt.Sprintf("  %s: <b>%s</b> / %s (⚠️ OVER %s)\n", s.Name, spentStr, budgetStr, remainStr)
+				}
+			} else {
+				text += fmt.Sprintf("  %s: <b>%s</b>\n", s.Name, spentStr)
+			}
 		}
 	}
 
