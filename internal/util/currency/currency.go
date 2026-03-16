@@ -1,6 +1,7 @@
 package currency
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -39,22 +40,37 @@ func ParseAmount(amountStr string) int64 {
 	return int64(value * float64(multiplier))
 }
 
-// FormatVND formats a number as Vietnamese Dong currency.
-// Example: 100000 -> "100,000 d"
+// FormatVND formats a number as compact Vietnamese Dong for Telegram display.
+// >= 1M and divisible by 100k: millions (6.9m, 32m)
+// >= 1k: truncated thousands with commas (516k, 6,383k)
+// < 1k: exact with dong symbol (1 ₫, 0 ₫)
 func FormatVND(amount types.Unsigned) string {
-	amountStr := strconv.FormatUint(uint64(amount), 10)
-	var result strings.Builder
+	v := uint64(amount)
 
-	n := len(amountStr)
-	for i, char := range amountStr {
-		if i > 0 && (n-i)%3 == 0 {
-			result.WriteRune(',')
+	if v >= 1_000_000 && v%100_000 == 0 {
+		if v%1_000_000 == 0 {
+			return fmt.Sprintf("%sm", addCommas(v/1_000_000))
 		}
-		result.WriteRune(char)
+		return fmt.Sprintf("%.1fm", float64(v)/1_000_000)
 	}
 
-	result.WriteString(" ₫")
-	return result.String()
+	if v >= 1_000 {
+		return addCommas(v/1_000) + "k"
+	}
+
+	return fmt.Sprintf("%d ₫", v)
+}
+
+func addCommas(n uint64) string {
+	s := strconv.FormatUint(n, 10)
+	var b strings.Builder
+	for i, ch := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteRune(',')
+		}
+		b.WriteRune(ch)
+	}
+	return b.String()
 }
 
 // ReverseFormatVND parses a formatted VND string back to Unsigned.

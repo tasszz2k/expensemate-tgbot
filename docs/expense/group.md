@@ -8,5 +8,5 @@
 | 4 | Must Have | Thiết yếu | mh, ty | Essential spending |
 | 5 | Nice to Have | Nên chi | nth, nc | Not essential, but good to have |
 | 6 | Wasted | Lãng phí | w, lp, waste, wasted | Unnecessary spending |
-| 7 | Family | Gia đình | fam, gd | Support for family |
-| 8 | Lover | Người yêu | lov, ny | Partner spending |
+| 7 | Family | Gia đình | f, fam, gd | Support for family |
+| 8 | Lover | Người yêu | l, lov, ny | Partner spending |

@@ -105,10 +105,15 @@ COMMON VIETNAMESE DISHES (Food category - "f"):
 - "cha ca/tra ca/tra cai" + "la vong" -> "Chả cá Lã Vọng"
 - "mi hoanh/mi hoan" -> "Mì hoành"
 - "banh mi/bang mi" -> "Bánh mì"
-- "cafe/ca phe/ga phe/cf" -> "Cà phê"
 - "an uong/an uoong" -> "Ăn uống"
 - "com trua/cuom trua" -> "Cơm trưa"
 - "gs25/ji es/GS" -> "GS25" (convenience store)
+
+CAFE/DRINKS (Cafe category - "cf"):
+- "cafe/ca phe/ga phe/cf" -> "Cà phê"
+- "tra sua/cha sua" -> "Trà sữa"
+- "nuoc ep/nuoc ep cam" -> "Nước ép"
+- "sinh to/xinh to" -> "Sinh tố"
 
 TRANSPORT (category - "tr"):
 - "xang xe/xang se/sang xe/do xang" -> "Đổ xăng" or "Xăng xe"
@@ -173,7 +178,8 @@ Available Groups (use the alias in lowercase for output):
 
 Available Categories (use the alias in lowercase for output):
 - Unclassified (alias: uc) - Chưa phân loại (DEFAULT if not specified)
-- Food (alias: f) - Ăn ngoài, ăn trưa, ăn tối, cơm, bún, phở, cà phê, trà sữa, GS25, KFC, ăn uống
+- Food (alias: f) - Ăn ngoài, ăn trưa, ăn tối, cơm, bún, phở, GS25, KFC, ăn uống
+- Cafe (alias: cf) - Cà phê, trà sữa, nước ép, sinh tố, Phúc Long, Highlands, Katinat
 - Groceries (alias: gr) - Đi chợ, siêu thị, thùng rác, túi rác, bình nước, khăn tắm
 - Transport (alias: tr) - Đi lại, Grab, xe ôm, taxi, xăng, đổ xăng, giữ xe, xe khách, bus, vé máy bay
 - Entertainment (alias: ent) - Giải trí, vé concert, xem phim, game

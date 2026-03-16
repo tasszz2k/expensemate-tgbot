@@ -671,11 +671,12 @@ func getHelpText() string {
 🔒 MUST HAVE (mh, ty) - Thiết yếu
 ✨ NICE TO HAVE (nth, nc) - Nên chi
 🗑 WASTE (w, lp) - Lãng phí
-👨‍👩‍👧‍👦 FAMILY (fam, gd) - Gia đình
-❤️ LOVER (lov, ny) - Người yêu
+👨‍👩‍👧‍👦 FAMILY (f, fam, gd) - Gia đình
+❤️ LOVER (l, lov, ny) - Người yêu
 
 📂 <b>Expense Categories:</b>
-🍜 Food (f, an, cf) - Ăn ngoài
+🍜 Food (f, an) - Ăn ngoài
+☕ Cafe (cf, caphe) - Cafe
 🛒 Groceries (gr, dc) - Đi chợ
 🚗 Transport (tr, dl) - Đi lại
 🎮 Entertainment (ent, gt) - Giải trí
@@ -891,6 +892,7 @@ var reportEmojiByName = map[string]string{
 	// Categories
 	"Unclassified / Chưa phân loại": "📋",
 	"Food / Ăn ngoài":               "🍜",
+	"Cafe / Cafe":                   "☕",
 	"Groceries / Đi chợ":            "🛒",
 	"Transport / Đi lại":            "🚗",
 	"Entertainment / Giải trí":      "🎮",

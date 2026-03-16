@@ -43,12 +43,12 @@ const (
 	ExpensesRightCol   = "G"
 
 	ExpensesReportRange   = "I3:J10"
-	ExpensesCategoryRange = "N3:P21"
+	ExpensesCategoryRange = "N3:P22"
 
 	GroupBudgetCol                = "K"
 	CategoryBudgetCol             = "Q"
 	GroupReportWithBudgetRange    = "I3:L10"
-	CategoryReportWithBudgetRange = "N3:R21"
+	CategoryReportWithBudgetRange = "N3:R22"
 
 	// New month sheet creation
 	ExpenseDataStartRow    = 10
@@ -73,27 +73,28 @@ var GroupBudgetRow = map[Group]int{
 	GroupLover:      10,
 }
 
-// CategoryBudgetRow maps categories to their sheet row numbers in the category report (N3:R21)
+// CategoryBudgetRow maps categories to their sheet row numbers in the category report (N3:R22)
 var CategoryBudgetRow = map[Category]int{
 	CategoryUnclassified:  3,
 	CategoryFood:          4,
-	CategoryGroceries:     5,
-	CategoryTransport:     6,
-	CategoryEntertainment: 7,
-	CategoryMiscellaneous: 8,
-	CategorySubscription:  9,
-	CategoryHousing:       10,
-	CategoryPersonalCare:  11,
-	CategoryHealthcare:    12,
-	CategoryClothing:      13,
-	CategoryEducation:     14,
-	CategoryTech:          15,
-	CategoryTravel:        16,
-	CategoryPresent:       17,
-	CategoryLifeEvents:    18,
-	CategoryLover:         19,
-	CategoryFamily:        20,
-	CategoryLostMoney:     21,
+	CategoryCafe:          5,
+	CategoryGroceries:     6,
+	CategoryTransport:     7,
+	CategoryEntertainment: 8,
+	CategoryMiscellaneous: 9,
+	CategorySubscription:  10,
+	CategoryHousing:       11,
+	CategoryPersonalCare:  12,
+	CategoryHealthcare:    13,
+	CategoryClothing:      14,
+	CategoryEducation:     15,
+	CategoryTech:          16,
+	CategoryTravel:        17,
+	CategoryPresent:       18,
+	CategoryLifeEvents:    19,
+	CategoryLover:         20,
+	CategoryFamily:        21,
+	CategoryLostMoney:     22,
 }
 
 // sheetNamePattern validates YYYY_MM format

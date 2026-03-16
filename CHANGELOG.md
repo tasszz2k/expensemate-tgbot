@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- New "Cafe / Cafe" expense category separated from Food (20 categories total)
+  - Aliases: `cf`, `caphe`, `cafe`, `ca phe`
+  - Cafe-related items (coffee, milk tea, juice, smoothie) moved from Food to Cafe
+  - OpenAI voice prompt updated with CAFE/DRINKS speech corrections section
+  - Category report range expanded from `N3:R21` to `N3:R22`
+- Group alias shortcuts: `f` for Family, `l` for Lover (synced from docs to code)
+- Compact currency formatting for Telegram messages (`516k`, `6.9m` instead of `516,002 ₫`, `6,900,000 ₫`)
+  - Amounts >= 1M and divisible by 100k shown in millions (e.g., `6.9m`, `32m`)
+  - Amounts >= 1k shown in truncated thousands (e.g., `516k`, `6,383k`)
+  - Small amounts shown exact with dong symbol (e.g., `1 ₫`)
+- Unit tests for `FormatVND` compact currency formatting
 - Budget (Expense Plan) feature for setting monthly spending caps per group and category
   - `/budget` standalone command for quick access to budget management
   - Budget menu accessible from `/expenses` > "Budget" button

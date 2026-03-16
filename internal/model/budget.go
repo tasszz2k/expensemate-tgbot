@@ -90,7 +90,7 @@ func ParseGroupBudgetRow(row []interface{}, rowIndex int) BudgetEntry {
 	return entry
 }
 
-// ParseCategoryBudgetRow parses a row from N3:R21 range into a BudgetEntry.
+// ParseCategoryBudgetRow parses a row from N3:R22 range into a BudgetEntry.
 // Row format: [Name, Amount, Percentage, Budget, Remaining]
 func ParseCategoryBudgetRow(row []interface{}, rowIndex int) BudgetEntry {
 	entry := BudgetEntry{

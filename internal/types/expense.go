@@ -75,12 +75,14 @@ var groupAliases = map[string]Group{
 	"gia dinh": GroupFamily,
 	"fam":      GroupFamily,
 	"gd":       GroupFamily,
+	"f":        GroupFamily,
 
 	"lover":     GroupLover,
 	"người yêu": GroupLover,
 	"nguoi yeu": GroupLover,
 	"lov":       GroupLover,
 	"ny":        GroupLover,
+	"l":         GroupLover,
 }
 
 func (g Group) String() string {
@@ -162,6 +164,7 @@ type Category string
 const (
 	CategoryUnclassified  Category = "Unclassified / Chưa phân loại"
 	CategoryFood          Category = "Food / Ăn ngoài"
+	CategoryCafe          Category = "Cafe / Cafe"
 	CategoryGroceries     Category = "Groceries / Đi chợ"
 	CategoryTransport     Category = "Transport / Đi lại"
 	CategoryEntertainment Category = "Entertainment / Giải trí"
@@ -188,6 +191,7 @@ func (c Category) String() string {
 // allCategories is the ordered list of all categories for UI display
 var allCategories = []Category{
 	CategoryFood,
+	CategoryCafe,
 	CategoryGroceries,
 	CategoryTransport,
 	CategoryEntertainment,
@@ -225,7 +229,11 @@ var categoryAliases = map[string]Category{
 	"an ngoai": CategoryFood,
 	"f":        CategoryFood,
 	"an":       CategoryFood,
-	"cf":       CategoryFood,
+
+	"cafe":   CategoryCafe,
+	"cf":     CategoryCafe,
+	"ca phe": CategoryCafe,
+	"caphe":  CategoryCafe,
 
 	"groceries": CategoryGroceries,
 	"đi chợ":    CategoryGroceries,
@@ -331,6 +339,7 @@ var categoryAliases = map[string]Category{
 // categoryShortNames maps categories to short display names for buttons
 var categoryShortNames = map[Category]string{
 	CategoryFood:          "🍜 Ăn ngoài",
+	CategoryCafe:          "☕ Cafe",
 	CategoryGroceries:     "🛒 Đi chợ",
 	CategoryTransport:     "🚗 Đi lại",
 	CategoryEntertainment: "🎮 Giải trí",
@@ -353,6 +362,7 @@ var categoryShortNames = map[Category]string{
 // categoryAliasForCallback maps categories to their short alias for callbacks
 var categoryAliasForCallback = map[Category]string{
 	CategoryFood:          "f",
+	CategoryCafe:          "cf",
 	CategoryGroceries:     "gr",
 	CategoryTransport:     "tr",
 	CategoryEntertainment: "ent",

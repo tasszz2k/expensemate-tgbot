@@ -112,9 +112,9 @@ Each user has their own spreadsheet with monthly sheets.
 - `I3:J10`: Group report (8 rows: INCOME, INVESTMENT OUT, INVESTMENT PROFIT, MUST HAVE, NICE TO HAVE, WASTED, FAMILY, LOVER)
 - `K3:K10`: Group budget caps
 - `L3:L10`: Group remaining (formula: budget - spent)
-- `N3:P21`: Category report (19 rows)
-- `Q3:Q21`: Category budget caps
-- `R3:R21`: Category remaining (formula: budget - spent)
+- `N3:P22`: Category report (20 rows)
+- `Q3:Q22`: Category budget caps
+- `R3:R22`: Category remaining (formula: budget - spent)
 
 **Asset Section (T:U):**
 - `T2:U9`: Current month asset breakdown (Total, Cash, Bank, eWallet, Saving, Investment, Lending, Debt)
@@ -140,11 +140,11 @@ DatabaseActivePageCell = "B2"
 ExpensesNextIDCell     = "B2"
 ExpensesTopRow         = 3
 ExpensesReportRange          = "I3:J10"
-ExpensesCategoryRange        = "N3:P21"
+ExpensesCategoryRange        = "N3:P22"
 GroupBudgetCol               = "K"
 CategoryBudgetCol            = "Q"
 GroupReportWithBudgetRange   = "I3:L10"
-CategoryReportWithBudgetRange = "N3:R21"
+CategoryReportWithBudgetRange = "N3:R22"
 
 // New month sheet creation
 ExpenseDataStartRow    = 10
@@ -208,12 +208,13 @@ type UserSheetMapping struct {
 | FAMILY | fam, gd | Gia đình |
 | LOVER | lov, ny | Người yêu |
 
-## Expense Categories (19)
+## Expense Categories (20)
 
 | Category | Aliases | Description |
 |----------|---------|-------------|
 | Unclassified | uc, cpl | Chưa phân loại (default) |
-| Food | f, an, cf | Ăn ngoài |
+| Food | f, an | Ăn ngoài |
+| Cafe | cf, caphe | Cafe |
 
 **Note:** Income and Investment Out groups do not require category selection (they are not expense types).
 | Groceries | gr, dc | Đi chợ |
