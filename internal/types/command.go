@@ -12,10 +12,15 @@ const (
 	CommandSettings Command = "settings"
 	CommandFeedback Command = "feedback"
 
-	CommandExpenses    Command = "expenses"
-	CommandExpenseAdd  Command = "expenses_add"
-	CommandExpenseHelp Command = "expenses_help"
-	CommandBudget     Command = "budget"
+	CommandExpenses         Command = "expenses"
+	CommandExpenseAdd      Command = "expenses_add"
+	CommandExpenseHelp     Command = "expenses_help"
+	CommandExpenseInsights Command = "expenses_insights"
+	CommandBudget          Command = "budget"
+
+	CommandAsk       Command = "ask"
+	CommandAskShortA Command = "a"
+	CommandAskShortQ Command = "q"
 )
 
 // ParseCallbackData parses callback data and returns command and sub-commands.

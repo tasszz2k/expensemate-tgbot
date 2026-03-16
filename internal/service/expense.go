@@ -504,6 +504,190 @@ func (s *ExpenseService) ClearBudget(ctx context.Context, userID types.ID, col s
 	return s.repo.ClearBudget(ctx, spreadsheetID, activePage, col, row)
 }
 
+// GetInsights aggregates group/category spending across multiple monthly sheets
+// and returns per-month averages.
+func (s *ExpenseService) GetInsights(ctx context.Context, userID types.ID, months int, ytd bool, efMultiplier int, excludeCurrent bool) (*model.InsightsResult, error) {
+	mapping, err := s.mappingService.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("getting user mapping: %w", err)
+	}
+	if mapping == nil {
+		return nil, fmt.Errorf("no spreadsheet configured for user %d", userID)
+	}
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+
+	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return nil, fmt.Errorf("getting active page: %w", err)
+	}
+
+	allNames, err := s.mappingService.GetValidSheetNames(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("getting valid sheet names: %w", err)
+	}
+
+	var target, found, missing []string
+	var periodLabel string
+	if ytd {
+		target, found, missing = types.YTDSheetNames(allNames, activePage)
+		periodLabel = "YTD"
+	} else {
+		target, found, missing = types.RecentSheetNames(allNames, months, activePage)
+		periodLabel = fmt.Sprintf("%d months", months)
+	}
+
+	if excludeCurrent {
+		var filtered []string
+		for _, name := range found {
+			if name != activePage {
+				filtered = append(filtered, name)
+			}
+		}
+		found = filtered
+	}
+
+	if len(found) == 0 {
+		return nil, fmt.Errorf("no monthly sheets found for the requested period (target: %v)", target)
+	}
+
+	sorted := types.SortSheetNames(found)
+
+	reports, err := s.repo.GetMultiMonthReports(ctx, spreadsheetID, sorted)
+	if err != nil {
+		return nil, fmt.Errorf("getting multi-month reports: %w", err)
+	}
+
+	monthCount := len(sorted)
+
+	groupTotals := make(map[string]int64)
+	categoryTotals := make(map[string]int64)
+	summaryTotals := make(map[string]int64)
+
+	var groupOrder []string
+	var categoryOrder []string
+	var summaryOrder []string
+	groupSeen := make(map[string]bool)
+	categorySeen := make(map[string]bool)
+	summarySeen := make(map[string]bool)
+
+	for _, name := range sorted {
+		report := reports[name]
+		for _, g := range report.Groups {
+			groupTotals[g.Name] += g.Spent
+			if !groupSeen[g.Name] {
+				groupSeen[g.Name] = true
+				groupOrder = append(groupOrder, g.Name)
+			}
+		}
+		for _, c := range report.Categories {
+			categoryTotals[c.Name] += c.Spent
+			if !categorySeen[c.Name] {
+				categorySeen[c.Name] = true
+				categoryOrder = append(categoryOrder, c.Name)
+			}
+		}
+		for _, s := range report.Summary {
+			summaryTotals[s.Name] += s.Spent
+			if !summarySeen[s.Name] {
+				summarySeen[s.Name] = true
+				summaryOrder = append(summaryOrder, s.Name)
+			}
+		}
+	}
+
+	buildAvgs := func(order []string, totals map[string]int64) []model.AverageEntry {
+		var entries []model.AverageEntry
+		for _, name := range order {
+			total := totals[name]
+			avg := total / int64(monthCount)
+			if avg != 0 {
+				entries = append(entries, model.AverageEntry{
+					Name:       name,
+					Total:      total,
+					Average:    avg,
+					MonthCount: monthCount,
+				})
+			}
+		}
+		return entries
+	}
+
+	groupAvgs := buildAvgs(groupOrder, groupTotals)
+	categoryAvgs := buildAvgs(categoryOrder, categoryTotals)
+	summaryAvgs := buildAvgs(summaryOrder, summaryTotals)
+
+	var mustHaveAvg int64
+	for _, g := range groupAvgs {
+		if g.Name == string(types.GroupMustHave) {
+			mustHaveAvg = g.Average
+			break
+		}
+	}
+
+	if efMultiplier <= 0 {
+		efMultiplier = 3
+	}
+
+	var excludedName string
+	if excludeCurrent {
+		excludedName = activePage
+	}
+
+	result := &model.InsightsResult{
+		Period:                  periodLabel,
+		MonthsFound:            sorted,
+		MonthsMissing:          missing,
+		ExcludedCurrent:        excludedName,
+		GroupAvgs:               groupAvgs,
+		CategoryAvgs:            categoryAvgs,
+		SummaryAvgs:             summaryAvgs,
+		EmergencyFundMultiplier: efMultiplier,
+		EmergencyFund:           mustHaveAvg * int64(efMultiplier),
+	}
+
+	return result, nil
+}
+
+// GetMonthlyReports returns per-month group/category/summary data for the
+// requested number of recent months. Used by the AI ask feature to provide
+// per-month breakdowns (not just averages).
+func (s *ExpenseService) GetMonthlyReports(ctx context.Context, userID types.ID, months int) (map[string]sheets.MonthReport, []string, error) {
+	mapping, err := s.mappingService.GetByUserID(ctx, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting user mapping: %w", err)
+	}
+	if mapping == nil {
+		return nil, nil, fmt.Errorf("no spreadsheet configured for user %d", userID)
+	}
+
+	spreadsheetID := mapping.SpreadsheetDocID()
+
+	activePage, err := s.repo.GetActivePage(ctx, spreadsheetID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting active page: %w", err)
+	}
+
+	allNames, err := s.mappingService.GetValidSheetNames(ctx, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting valid sheet names: %w", err)
+	}
+
+	_, found, _ := types.RecentSheetNames(allNames, months, activePage)
+	if len(found) == 0 {
+		return nil, nil, fmt.Errorf("no monthly sheets found")
+	}
+
+	sorted := types.SortSheetNames(found)
+
+	reports, err := s.repo.GetMultiMonthReports(ctx, spreadsheetID, sorted)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting multi-month reports: %w", err)
+	}
+
+	return reports, sorted, nil
+}
+
 // buildSheetURL builds a URL that navigates directly to the active sheet tab.
 // Uses the canonical /edit#gid= format so the fragment survives Google Sheets redirects.
 // Falls back to the base URL if the sheet ID lookup fails.

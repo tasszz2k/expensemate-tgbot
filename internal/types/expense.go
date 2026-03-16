@@ -17,6 +17,7 @@ const (
 	ExpenseActionSetGroup    ExpenseAction = "setgrp"
 	ExpenseActionSetCategory ExpenseAction = "setcat"
 	ExpenseActionBudget      ExpenseAction = "budget"
+	ExpenseActionInsights    ExpenseAction = "insights"
 )
 
 func (a ExpenseAction) String() string {

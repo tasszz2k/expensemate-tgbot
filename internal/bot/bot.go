@@ -171,6 +171,12 @@ func (b *Bot) handleCommand(ctx context.Context, msg *tgbotapi.Message) (tgbotap
 	case types.CommandBudget:
 		return b.expenseHandler.HandleBudgetCommand(ctx, msg)
 
+	case types.CommandExpenseInsights:
+		return b.expenseHandler.HandleExpensesInsightsCommand(ctx, msg)
+
+	case types.CommandAsk, types.CommandAskShortA, types.CommandAskShortQ:
+		return b.expenseHandler.HandleAskCommand(ctx, msg)
+
 	case types.CommandGSheets:
 		return b.gsheetsHandler.HandleGSheetsCommand(ctx, msg)
 
@@ -205,6 +211,12 @@ func (b *Bot) handleConversation(ctx context.Context, msg *tgbotapi.Message, cur
 
 	case state.StateGSheetsUpdateActivePage:
 		return b.gsheetsHandler.HandleUpdateActivePage(ctx, msg)
+
+	case state.StateInsightsCustomEF:
+		return b.expenseHandler.HandleInsightsCustomEF(ctx, msg)
+
+	case state.StateAskConversation:
+		return b.expenseHandler.HandleAskFollowUp(ctx, msg)
 
 	default:
 		// Check for budget states (prefix-based)

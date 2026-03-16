@@ -9,6 +9,7 @@ import (
 
 	"expensemate-tgbot/internal/log"
 	"expensemate-tgbot/internal/model"
+	"expensemate-tgbot/internal/repository/openai"
 	"expensemate-tgbot/internal/service"
 	"expensemate-tgbot/internal/state"
 	"expensemate-tgbot/internal/types"
@@ -23,6 +24,7 @@ type ExpenseHandler struct {
 	expenseService      *service.ExpenseService
 	mappingService      *service.MappingService
 	voiceExpenseService *service.VoiceExpenseService
+	askService          *service.AskService
 	stateManager        *state.Manager
 }
 
@@ -42,6 +44,16 @@ func NewExpenseHandler(
 // SetVoiceExpenseService sets the voice expense service (optional, for voice support)
 func (h *ExpenseHandler) SetVoiceExpenseService(voiceService *service.VoiceExpenseService) {
 	h.voiceExpenseService = voiceService
+}
+
+// SetAskService sets the ask service (optional, for AI ask support)
+func (h *ExpenseHandler) SetAskService(askService *service.AskService) {
+	h.askService = askService
+}
+
+// IsAskEnabled returns true if AI ask feature is enabled
+func (h *ExpenseHandler) IsAskEnabled() bool {
+	return h.askService != nil && h.askService.IsEnabled()
 }
 
 // HandleExpensesCommand handles the /expenses command
@@ -70,6 +82,7 @@ func (h *ExpenseHandler) HandleExpensesCommand(ctx context.Context, msg *tgbotap
 			tgbotapi.NewInlineKeyboardButtonData("🗑 Delete", "expenses:delete"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("📈 Insights", "expenses:insights"),
 			tgbotapi.NewInlineKeyboardButtonData("❓ Help", "expenses:help"),
 		),
 	)
@@ -314,23 +327,7 @@ func (h *ExpenseHandler) HandleExpensesReport(ctx context.Context, chatID int64,
 
 	if len(summary) > 0 {
 		text += "\n💰 <b>Summary:</b>\n"
-		for _, s := range summary {
-			if s.Name == "" {
-				continue
-			}
-			spentStr := currency.FormatVND(types.Unsigned(abs64(s.Spent)))
-			if s.HasBudget {
-				budgetStr := currency.FormatVND(types.Unsigned(s.Budget))
-				remainStr := currency.FormatVND(types.Unsigned(abs64(s.Remaining)))
-				if s.Remaining >= 0 {
-					text += fmt.Sprintf("  %s: <b>%s</b> / %s (%s left)\n", s.Name, spentStr, budgetStr, remainStr)
-				} else {
-					text += fmt.Sprintf("  %s: <b>%s</b> / %s (⚠️ OVER %s)\n", s.Name, spentStr, budgetStr, remainStr)
-				}
-			} else {
-				text += fmt.Sprintf("  %s: <b>%s</b>\n", s.Name, spentStr)
-			}
-		}
+		text += formatSummaryLines(summary)
 	}
 
 	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View full report in Google Sheets</a>", spreadsheetURL)
@@ -384,6 +381,8 @@ func (h *ExpenseHandler) HandleCallback(ctx context.Context, cb *tgbotapi.Callba
 		return h.handleQuickDeleteCallback(ctx, cb, subCommands, chatID, messageID, userID)
 	case types.ExpenseActionBudget:
 		return h.handleBudgetCallback(ctx, cb, subCommands[1:], chatID, messageID, userID)
+	case types.ExpenseActionInsights:
+		return h.handleInsightsCallback(ctx, subCommands[1:], chatID, messageID, userID)
 	default:
 		h.stateManager.End(chatID)
 		reply := tgbotapi.NewMessage(chatID, "")
@@ -914,6 +913,10 @@ var reportEmojiByName = map[string]string{
 	"WASTED":            "🗑",
 	"FAMILY":            "👨‍👩‍👧‍👦",
 	"LOVER":             "❤️",
+	// Summary
+	"Self Expenses":  "👤",
+	"Total Expenses": "💳",
+	"Net Change":     "📉",
 	// Categories
 	"Unclassified / Chưa phân loại": "📋",
 	"Food / Ăn ngoài":               "🍜",
@@ -1001,6 +1004,34 @@ func abs64(x int64) int64 {
 		return -x
 	}
 	return x
+}
+
+// formatSummaryLines formats summary entries (Self Expenses, Total Expenses, Net Change)
+// with icons and optional budget comparison.
+func formatSummaryLines(summary []model.BudgetEntry) string {
+	var text string
+	for _, s := range summary {
+		if s.Name == "" {
+			continue
+		}
+		icon := reportEmojiByName[s.Name]
+		if icon == "" {
+			icon = "💰"
+		}
+		spentStr := currency.FormatVND(types.Unsigned(abs64(s.Spent)))
+		if s.HasBudget {
+			budgetStr := currency.FormatVND(types.Unsigned(s.Budget))
+			remainStr := currency.FormatVND(types.Unsigned(abs64(s.Remaining)))
+			if s.Remaining >= 0 {
+				text += fmt.Sprintf("  %s %s: <b>%s</b> / %s (%s left)\n", icon, s.Name, spentStr, budgetStr, remainStr)
+			} else {
+				text += fmt.Sprintf("  %s %s: <b>%s</b> / %s (⚠️ OVER %s)\n", icon, s.Name, spentStr, budgetStr, remainStr)
+			}
+		} else {
+			text += fmt.Sprintf("  %s %s: <b>%s</b>\n", icon, s.Name, spentStr)
+		}
+	}
+	return text
 }
 
 // formatBudgetStatus formats budget status for after-add display.
@@ -1174,23 +1205,7 @@ func (h *ExpenseHandler) handleBudgetView(ctx context.Context, chatID int64, mes
 
 	if len(summary) > 0 {
 		text += "\n💰 <b>Summary:</b>\n"
-		for _, s := range summary {
-			if s.Name == "" {
-				continue
-			}
-			spentStr := currency.FormatVND(types.Unsigned(abs64(s.Spent)))
-			if s.HasBudget {
-				budgetStr := currency.FormatVND(types.Unsigned(s.Budget))
-				remainStr := currency.FormatVND(types.Unsigned(abs64(s.Remaining)))
-				if s.Remaining >= 0 {
-					text += fmt.Sprintf("  %s: <b>%s</b> / %s (%s left)\n", s.Name, spentStr, budgetStr, remainStr)
-				} else {
-					text += fmt.Sprintf("  %s: <b>%s</b> / %s (⚠️ OVER %s)\n", s.Name, spentStr, budgetStr, remainStr)
-				}
-			} else {
-				text += fmt.Sprintf("  %s: <b>%s</b>\n", s.Name, spentStr)
-			}
-		}
+		text += formatSummaryLines(summary)
 	}
 
 	text += fmt.Sprintf("\n🔗 <a href=\"%s\">View in Google Sheets</a>", sheetURL)
@@ -1465,4 +1480,328 @@ func (h *ExpenseHandler) HandleBudgetAmountInput(ctx context.Context, msg *tgbot
 // IsVoiceEnabled returns true if voice expense feature is enabled
 func (h *ExpenseHandler) IsVoiceEnabled() bool {
 	return h.voiceExpenseService != nil && h.voiceExpenseService.IsEnabled()
+}
+
+// --- Insights handlers ---
+
+const defaultInsightsPeriod = "3"
+const defaultInsightsEF = 3
+const defaultInsightsExclCurrent = true
+
+// HandleExpensesInsightsCommand handles the /expenses_insights command directly
+func (h *ExpenseHandler) HandleExpensesInsightsCommand(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	log.Debug("insights command", log.Fields{"user_id": msg.From.ID, "action": "expenses_insights"})
+
+	reply := tgbotapi.NewMessage(msg.Chat.ID, "")
+
+	mapping, err := h.mappingService.GetByUserID(ctx, types.ID(msg.From.ID))
+	if err != nil || mapping == nil {
+		return h.getUnauthorizedMsg(reply), nil
+	}
+
+	h.stateManager.End(msg.Chat.ID)
+
+	text, keyboard, err := h.buildInsightsResponse(ctx, msg.From.ID, defaultInsightsPeriod, defaultInsightsEF, defaultInsightsExclCurrent)
+	if err != nil {
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s", err.Error())
+		return reply, nil
+	}
+
+	reply.Text = text
+	reply.ReplyMarkup = keyboard
+	return reply, nil
+}
+
+// handleInsightsCallback handles insights callbacks from inline buttons
+func (h *ExpenseHandler) handleInsightsCallback(ctx context.Context, subCommands []string, chatID int64, messageID int, userID int64) (Response, error) {
+	h.stateManager.End(chatID)
+
+	period := defaultInsightsPeriod
+	efMultiplier := defaultInsightsEF
+	exclCurrent := defaultInsightsExclCurrent
+
+	if len(subCommands) >= 1 {
+		period = subCommands[0]
+	}
+	if len(subCommands) >= 2 {
+		efStr := subCommands[1]
+		if efStr == "custom" {
+			// Parse exclCurrent before entering conversation state
+			if len(subCommands) >= 3 {
+				exclCurrent = subCommands[2] != "0"
+			}
+			h.stateManager.Start(chatID, state.StateInsightsCustomEF)
+			h.stateManager.SetInsightsPendingData(chatID, &state.InsightsPendingData{
+				Period:         period,
+				ExcludeCurrent: exclCurrent,
+			})
+			text := "🔢 <b>Custom Emergency Fund Multiplier</b>\n\nEnter the number of months for your emergency fund target (e.g., 4, 8, 12):"
+			return NewEditResponse(chatID, messageID, text), nil
+		}
+		if parsed, err := strconv.Atoi(efStr); err == nil && parsed > 0 {
+			efMultiplier = parsed
+		}
+	}
+	if len(subCommands) >= 3 {
+		exclCurrent = subCommands[2] != "0"
+	}
+
+	text, keyboard, err := h.buildInsightsResponse(ctx, userID, period, efMultiplier, exclCurrent)
+	if err != nil {
+		return NewEditResponse(chatID, messageID, fmt.Sprintf("<b>Error:</b> %s", err.Error())), nil
+	}
+
+	return NewEditWithKeyboardResponse(chatID, messageID, text, keyboard), nil
+}
+
+// HandleInsightsCustomEF handles the conversation state for custom EF multiplier input
+func (h *ExpenseHandler) HandleInsightsCustomEF(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	chatID := msg.Chat.ID
+	reply := tgbotapi.NewMessage(chatID, "")
+
+	pending := h.stateManager.GetInsightsPendingData(chatID)
+	if pending == nil {
+		h.stateManager.End(chatID)
+		reply.Text = "Session expired. Please use /expenses_insights again."
+		return reply, nil
+	}
+
+	efMultiplier, err := strconv.Atoi(strings.TrimSpace(msg.Text))
+	if err != nil || efMultiplier <= 0 {
+		reply.Text = "Please enter a valid positive number (e.g., 4, 8, 12):"
+		return reply, nil
+	}
+
+	h.stateManager.End(chatID)
+	h.stateManager.ClearInsightsPendingData(chatID)
+
+	text, keyboard, buildErr := h.buildInsightsResponse(ctx, msg.From.ID, pending.Period, efMultiplier, pending.ExcludeCurrent)
+	if buildErr != nil {
+		reply.Text = fmt.Sprintf("<b>Error:</b> %s", buildErr.Error())
+		return reply, nil
+	}
+
+	reply.Text = text
+	reply.ReplyMarkup = keyboard
+	return reply, nil
+}
+
+// buildInsightsResponse builds the insights message text and inline keyboard
+func (h *ExpenseHandler) buildInsightsResponse(ctx context.Context, userID int64, period string, efMultiplier int, exclCurrent bool) (string, tgbotapi.InlineKeyboardMarkup, error) {
+	var months int
+	var ytd bool
+
+	switch period {
+	case "3":
+		months = 3
+	case "6":
+		months = 6
+	case "12":
+		months = 12
+	case "ytd":
+		ytd = true
+	default:
+		months = 3
+		period = "3"
+	}
+
+	result, err := h.expenseService.GetInsights(ctx, types.ID(userID), months, ytd, efMultiplier, exclCurrent)
+	if err != nil {
+		return "", tgbotapi.InlineKeyboardMarkup{}, err
+	}
+
+	text := fmt.Sprintf("📈 <b>Expense Insights (%s)</b>\n", result.Period)
+
+	if len(result.GroupAvgs) > 0 {
+		text += "\n💼 <b>Avg by Group (monthly):</b>\n"
+		for _, g := range result.GroupAvgs {
+			icon := reportEmojiByName[g.Name]
+			if icon == "" {
+				icon = "🔸"
+			}
+			text += fmt.Sprintf("  %s %s: <b>%s</b>\n", icon, g.Name, currency.FormatVNDSigned(g.Average))
+		}
+	}
+
+	if len(result.CategoryAvgs) > 0 {
+		text += "\n📂 <b>Avg by Category (monthly):</b>\n"
+		for _, c := range result.CategoryAvgs {
+			icon := reportEmojiByName[c.Name]
+			if icon == "" {
+				icon = "🔹"
+			}
+			text += fmt.Sprintf("  %s %s: <b>%s</b>\n", icon, c.Name, currency.FormatVNDSigned(c.Average))
+		}
+	}
+
+	if len(result.SummaryAvgs) > 0 {
+		text += "\n💰 <b>Monthly Average:</b>\n"
+		for _, s := range result.SummaryAvgs {
+			icon := reportEmojiByName[s.Name]
+			if icon == "" {
+				icon = "💰"
+			}
+			text += fmt.Sprintf("  %s %s: <b>%s</b>\n", icon, s.Name, currency.FormatVNDSigned(s.Average))
+		}
+	}
+
+	text += fmt.Sprintf("\n🏦 <b>Emergency Fund (%dx avg MUST HAVE):</b>\n", result.EmergencyFundMultiplier)
+	text += fmt.Sprintf("  Target: <b>%s</b>\n", currency.FormatVNDSigned(result.EmergencyFund))
+
+	text += fmt.Sprintf("\n📅 Based on: %s", strings.Join(result.MonthsFound, ", "))
+	if result.ExcludedCurrent != "" {
+		text += fmt.Sprintf("\n🚫 Excluded: %s (current month)", result.ExcludedCurrent)
+	}
+	if len(result.MonthsMissing) > 0 {
+		text += fmt.Sprintf("\n⚠️ Missing: %s", strings.Join(result.MonthsMissing, ", "))
+	}
+
+	keyboard := buildInsightsKeyboard(period, efMultiplier, exclCurrent)
+	return text, keyboard, nil
+}
+
+// buildInsightsKeyboard creates the inline keyboard for period, EF, and exclude-current selection
+func buildInsightsKeyboard(activePeriod string, activeEF int, exclCurrent bool) tgbotapi.InlineKeyboardMarkup {
+	efStr := strconv.Itoa(activeEF)
+	exclStr := "1"
+	if !exclCurrent {
+		exclStr = "0"
+	}
+
+	periodButtons := []struct {
+		label  string
+		period string
+	}{
+		{"3M", "3"},
+		{"6M", "6"},
+		{"12M", "12"},
+		{"YTD", "ytd"},
+	}
+
+	var periodRow []tgbotapi.InlineKeyboardButton
+	for _, p := range periodButtons {
+		label := p.label
+		if p.period == activePeriod {
+			label += " ✓"
+		}
+		data := fmt.Sprintf("expenses:insights:%s:%s:%s", p.period, efStr, exclStr)
+		periodRow = append(periodRow, tgbotapi.NewInlineKeyboardButtonData(label, data))
+	}
+
+	efButtons := []struct {
+		label string
+		value string
+	}{
+		{"3x", "3"},
+		{"6x", "6"},
+		{"Custom", "custom"},
+	}
+
+	var efRow []tgbotapi.InlineKeyboardButton
+	for _, e := range efButtons {
+		label := "EF: " + e.label
+		if e.value != "custom" {
+			v, _ := strconv.Atoi(e.value)
+			if v == activeEF {
+				label += " ✓"
+			}
+		}
+		data := fmt.Sprintf("expenses:insights:%s:%s:%s", activePeriod, e.value, exclStr)
+		efRow = append(efRow, tgbotapi.NewInlineKeyboardButtonData(label, data))
+	}
+
+	toggleExclStr := "0"
+	toggleLabel := "Incl. current month"
+	if !exclCurrent {
+		toggleExclStr = "1"
+		toggleLabel = "Excl. current month"
+	} else {
+		toggleLabel += " ✓"
+	}
+	toggleData := fmt.Sprintf("expenses:insights:%s:%s:%s", activePeriod, efStr, toggleExclStr)
+	toggleRow := []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData(toggleLabel, toggleData),
+	}
+
+	return tgbotapi.NewInlineKeyboardMarkup(periodRow, efRow, toggleRow)
+}
+
+// --- Ask AI handlers ---
+
+// HandleAskCommand handles the /ask, /a, /q commands
+func (h *ExpenseHandler) HandleAskCommand(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	logger := log.WithMessage(msg)
+	log.WithAction(logger, "ask").Info("user started ask AI flow")
+
+	chatID := msg.Chat.ID
+	reply := tgbotapi.NewMessage(chatID, "")
+
+	if !h.IsAskEnabled() {
+		reply.Text = "AI Ask is not available. OpenAI API key is not configured."
+		return reply, nil
+	}
+
+	mapping, err := h.mappingService.GetByUserID(ctx, types.ID(msg.From.ID))
+	if err != nil || mapping == nil {
+		return h.getUnauthorizedMsg(reply), nil
+	}
+
+	// If the user typed "/ask <question>" directly, process it immediately
+	args := strings.TrimSpace(msg.CommandArguments())
+	if args != "" {
+		h.stateManager.Start(chatID, state.StateAskConversation)
+		return h.processAskQuestion(ctx, msg.From.ID, chatID, args)
+	}
+
+	h.stateManager.Start(chatID, state.StateAskConversation)
+	h.stateManager.ClearAskPendingData(chatID)
+
+	reply.Text = `🤖 <b>Ask AI</b>
+
+Ask me anything about your expenses or how to use this bot.
+Supports Vietnamese and English.
+
+Examples:
+- Tôi cần xây dựng quỹ khẩn cấp bao nhiêu tiền?
+- Which category did I spend the most on?
+- How do I set a budget?
+
+Type /cancel to exit.`
+
+	return reply, nil
+}
+
+// HandleAskFollowUp handles follow-up messages in the ask conversation state
+func (h *ExpenseHandler) HandleAskFollowUp(ctx context.Context, msg *tgbotapi.Message) (tgbotapi.MessageConfig, error) {
+	logger := log.WithMessage(msg)
+	log.WithAction(logger, "ask_followup").Info("processing ask follow-up")
+
+	return h.processAskQuestion(ctx, msg.From.ID, msg.Chat.ID, msg.Text)
+}
+
+func (h *ExpenseHandler) processAskQuestion(ctx context.Context, userID int64, chatID int64, question string) (tgbotapi.MessageConfig, error) {
+	reply := tgbotapi.NewMessage(chatID, "")
+
+	pending := h.stateManager.GetAskPendingData(chatID)
+	var history []openai.ChatMessage
+	if pending != nil {
+		history = pending.History
+	}
+
+	answer, updatedHistory, err := h.askService.Ask(ctx, types.ID(userID), question, history)
+	if err != nil {
+		log.Error("ask AI failed", err, log.Fields{
+			"user_id": userID,
+			"action":  "ask_ai_error",
+		})
+		reply.Text = fmt.Sprintf("Sorry, I couldn't process your question: %s", err.Error())
+		return reply, nil
+	}
+
+	h.stateManager.SetAskPendingData(chatID, &state.AskPendingData{
+		History: updatedHistory,
+	})
+
+	reply.Text = answer
+	return reply, nil
 }

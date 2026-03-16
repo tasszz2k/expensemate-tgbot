@@ -278,3 +278,74 @@ func (r *ExpenseRepository) UpdateGroup(ctx context.Context, spreadsheetID, shee
 func (r *ExpenseRepository) GetSheetID(ctx context.Context, spreadsheetID, sheetName string) (int64, error) {
 	return r.client.GetSheetID(ctx, spreadsheetID, sheetName)
 }
+
+// MonthReport holds parsed report data for a single monthly sheet
+type MonthReport struct {
+	Groups   []model.BudgetEntry
+	Categories []model.BudgetEntry
+	Summary  []model.BudgetEntry
+}
+
+// GetMultiMonthReports reads group, category, and summary reports from multiple
+// monthly sheets in a single BatchGet call.
+func (r *ExpenseRepository) GetMultiMonthReports(ctx context.Context, spreadsheetID string, sheetNames []string) (map[string]MonthReport, error) {
+	if len(sheetNames) == 0 {
+		return nil, nil
+	}
+
+	var ranges []string
+	for _, name := range sheetNames {
+		ranges = append(ranges,
+			types.BuildRange(name, types.InsightsGroupAndSummaryRange),
+			types.BuildRange(name, types.InsightsCategoryRange),
+		)
+	}
+
+	log.Debug("batch reading multi-month reports", logrus.Fields{
+		"spreadsheet_id": spreadsheetID,
+		"sheet_count":    len(sheetNames),
+		"range_count":    len(ranges),
+	})
+
+	results, err := r.client.BatchGet(ctx, spreadsheetID, ranges)
+	if err != nil {
+		return nil, fmt.Errorf("batch reading reports: %w", err)
+	}
+
+	reports := make(map[string]MonthReport, len(sheetNames))
+	for i, name := range sheetNames {
+		report := MonthReport{}
+
+		groupIdx := i * 2
+		catIdx := i*2 + 1
+
+		if groupIdx < len(results) && results[groupIdx] != nil {
+			for j, row := range results[groupIdx].Values {
+				if j < 8 {
+					entry := model.ParseGroupBudgetRow(row, 3+j)
+					if entry.Name != "" {
+						report.Groups = append(report.Groups, entry)
+					}
+				} else {
+					entry := model.ParseGroupBudgetRow(row, 3+j)
+					if entry.Name != "" {
+						report.Summary = append(report.Summary, entry)
+					}
+				}
+			}
+		}
+
+		if catIdx < len(results) && results[catIdx] != nil {
+			for j, row := range results[catIdx].Values {
+				entry := model.ParseCategoryBudgetRow(row, 3+j)
+				if entry.Name != "" {
+					report.Categories = append(report.Categories, entry)
+				}
+			}
+		}
+
+		reports[name] = report
+	}
+
+	return reports, nil
+}

@@ -22,12 +22,13 @@ cmd/bot/main.go              - Entry point, dependency injection
 internal/
   bot/bot.go                 - Bot struct, Handle() router
   handler/
-    expense.go               - Expense command handlers (incl. voice)
+    expense.go               - Expense command handlers (incl. voice, ask)
     gsheets.go               - GSheets command handlers
     start.go                 - Start/help/settings handlers
   service/
     expense.go               - Expense business logic
     voice_expense.go         - Voice expense processing
+    ask.go                   - AI Ask NL query service
     mapping.go               - User-spreadsheet mapping service
   repository/
     openai/client.go         - OpenAI Whisper + ChatGPT client
@@ -40,6 +41,7 @@ internal/
   log/logger.go              - Structured logging with logrus
   model/
     expense.go               - Expense model
+    insights.go              - Insights/average entry models
     mapping.go               - UserSheetMapping model
   types/
     common.go                - Base types (ID, Unsigned, etc.)
@@ -47,7 +49,7 @@ internal/
     expense.go               - Expense groups, categories, actions
     gsheets.go               - GSheets cell references, actions
   util/
-    currency/currency.go     - Currency parsing and formatting
+    currency/currency.go     - Currency parsing and formatting (incl. FormatVNDSigned)
     time/time.go             - Time parsing and formatting
     http/http.go             - URL validation utilities
 ```
@@ -143,8 +145,10 @@ ExpensesReportRange          = "I3:J10"
 ExpensesCategoryRange        = "N3:P22"
 GroupBudgetCol               = "K"
 CategoryBudgetCol            = "Q"
-GroupReportWithBudgetRange   = "I3:L10"
+GroupReportWithBudgetRange    = "I3:L10"
 CategoryReportWithBudgetRange = "N3:R22"
+InsightsGroupAndSummaryRange  = "I3:J13"  // groups + summary rows
+InsightsCategoryRange         = "N3:O22"
 
 // New month sheet creation
 ExpenseDataStartRow    = 10
@@ -191,6 +195,25 @@ type UserSheetMapping struct {
     CreatedAt       time.Time
     UpdatedAt       time.Time
     Status          MappingStatus
+}
+
+type AverageEntry struct {
+    Name       string
+    Total      int64
+    Average    int64
+    MonthCount int
+}
+
+type InsightsResult struct {
+    Period                  string
+    MonthsFound             []string
+    MonthsMissing           []string
+    ExcludedCurrent         string
+    GroupAvgs               []AverageEntry
+    CategoryAvgs            []AverageEntry
+    SummaryAvgs             []AverageEntry
+    EmergencyFundMultiplier int
+    EmergencyFund           int64
 }
 ```
 
@@ -294,13 +317,64 @@ The bot supports voice input for adding expenses using OpenAI Whisper and ChatGP
 openai:
   api_key: sk-xxxxxxxx
   whisper_model: gpt-4o-transcribe  # or whisper-1
-  chat_model: gpt-4o-mini           # default
+  chat_model: gpt-4o                # used for both voice parsing and AI ask
 ```
 
 **Architecture:**
-- `internal/repository/openai/client.go` - Whisper + ChatGPT client
+- `internal/repository/openai/client.go` - Whisper + ChatGPT client (incl. ChatWithHistory for conversations)
 - `internal/service/voice_expense.go` - Voice processing orchestration
 - `internal/handler/expense.go` - HandleVoiceExpense(), HandleVoiceClarification()
+
+---
+
+## AI Ask Feature
+
+Natural language query feature allowing users to ask questions about their expenses in Vietnamese or English, with follow-up conversation support.
+
+**Commands:** `/ask`, `/a`, `/q` (aliases)
+
+**Flow:**
+1. User sends `/ask` (enters conversation state) or `/ask <question>` (inline)
+2. AskService gathers expense context: current month budget overview + 6-month historical per-month data
+3. Builds system prompt with structured data + bot help reference + formatting rules
+4. Sends to GPT via `ChatWithHistory` with conversation history
+5. Returns HTML-formatted answer; conversation stays active for follow-ups
+6. `/cancel` or any other command exits
+
+**Conversation history:** In-memory per chatID, capped at 10 turns (20 messages). Lost on restart.
+
+**System prompt includes:**
+- Current month group/category report with budgets
+- Per-month group/category/summary breakdowns (up to 6 months)
+- Bot command reference (so AI can answer help questions too)
+- Formatting rules (Telegram HTML only, no markdown)
+- Ranking/comparison instructions (show top 3 + average)
+
+**Architecture:**
+- `internal/service/ask.go` - AskService (prompt builder, conversation orchestrator)
+- `internal/repository/openai/client.go` - ChatMessage type, ChatWithHistory method
+- `internal/state/conversation.go` - StateAskConversation, AskPendingData (history storage)
+- `internal/handler/expense.go` - HandleAskCommand(), HandleAskFollowUp()
+
+---
+
+## Expense Insights Feature
+
+Multi-month spending analysis with averages and emergency fund calculation.
+
+**Command:** `/expenses_insights` or Insights button in `/expenses` menu
+
+**Flow:**
+1. Fetches group/category/summary reports from multiple monthly sheets via BatchGet
+2. Computes per-group and per-category monthly averages
+3. Calculates emergency fund target (configurable multiplier x avg MUST HAVE)
+4. Shows period selector (3M/6M/12M/YTD) and EF multiplier buttons (3x/6x/Custom)
+
+**Architecture:**
+- `internal/service/expense.go` - GetInsights(), GetMonthlyReports()
+- `internal/repository/sheets/expense.go` - GetMultiMonthReports(), MonthReport struct
+- `internal/model/insights.go` - InsightsResult, AverageEntry models
+- `internal/types/gsheets.go` - RecentSheetNames(), YTDSheetNames(), SortSheetNames()
 
 ---
 
@@ -312,6 +386,8 @@ openai:
 | `expenses:voice_clarify` | Waiting for voice expense clarification |
 | `budget:set_group:{row}` | Waiting for group budget amount |
 | `budget:set_category:{row}` | Waiting for category budget amount |
+| `insights:ef_custom` | Waiting for custom emergency fund multiplier |
+| `ask:conversation` | AI ask multi-turn conversation |
 | `gsheets:configure` | Waiting for Google Sheets URL |
 | `gsheets:update_current_page` | Waiting for active page name |
 
@@ -326,6 +402,8 @@ openai:
 | /expenses | ExpenseHandler.HandleExpensesCommand | Expense menu |
 | /expenses_add | ExpenseHandler.HandleExpensesAddCommand | Add expense |
 | /expenses_help | ExpenseHandler.HandleExpensesHelp | Groups/categories |
+| /expenses_insights | ExpenseHandler.HandleExpensesInsightsCommand | Multi-month avg insights |
+| /ask, /a, /q | ExpenseHandler.HandleAskCommand | AI NL query (expenses + help) |
 | /budget | ExpenseHandler.HandleBudgetCommand | Budget management menu |
 | /gsheets | GSheetsHandler.HandleGSheetsCommand | Configure sheets, create new month |
 | /settings | StartHandler.HandleSettings | Settings (not impl) |
@@ -351,6 +429,26 @@ openai:
 | `expenses:budget:setcat` | handleBudgetSetCategory | Select category to set budget |
 | `expenses:budget:setcat:{row}` | handleBudgetSetCategory | Prompt for category budget amount |
 | `expenses:budget:back` | handleBudgetMenu | Return to budget menu |
+| `expenses:insights` | handleInsightsCallback | Default insights (3M, 3x EF, excl current) |
+| `expenses:insights:{period}:{ef}:{excl}` | handleInsightsCallback | Insights with params |
+
+### Insights Feature
+
+Multi-month average spending analysis accessible via `/expenses_insights` or "Insights" button in expense menu.
+
+**Callback format:** `expenses:insights:{period}:{efMultiplier}:{excludeCurrent}`
+- `{period}` = `3`, `6`, `12`, or `ytd`
+- `{efMultiplier}` = `3`, `6`, or `custom` (triggers conversation state for custom input)
+- `{excludeCurrent}` = `1` (exclude active page, default) or `0` (include)
+
+**Data flow:** Uses `client.BatchGet()` to read group reports (`I3:J13`) and category reports (`N3:O22`) from multiple monthly sheets in a single API call. Results aggregated and averaged.
+
+**Models:**
+- `AverageEntry`: Name, Total, Average, MonthCount
+- `InsightsResult`: Period, MonthsFound, MonthsMissing, ExcludedCurrent, GroupAvgs, CategoryAvgs, SummaryAvgs, EmergencyFundMultiplier, EmergencyFund
+- `MonthReport`: Groups, Categories, Summary (per-sheet parsed data)
+
+**Emergency Fund:** Calculated as `efMultiplier * avg MUST HAVE`. User can pick 3x, 6x, or type custom multiplier.
 
 ### Google Sheets Deep Links
 

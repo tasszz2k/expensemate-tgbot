@@ -286,6 +286,44 @@ func (c *Client) ParseExpenseWithContext(ctx context.Context, originalText, clar
 	return c.ParseExpenseText(ctx, combinedText)
 }
 
+// ChatMessage represents a single message in a conversation
+type ChatMessage struct {
+	Role    string
+	Content string
+}
+
+// ChatWithHistory sends a multi-turn conversation to ChatGPT and returns the
+// assistant's reply. The caller is responsible for maintaining the message
+// history (system prompt + previous turns).
+func (c *Client) ChatWithHistory(ctx context.Context, messages []ChatMessage) (string, error) {
+	if len(messages) == 0 {
+		return "", fmt.Errorf("messages cannot be empty")
+	}
+
+	oaiMessages := make([]openai.ChatCompletionMessage, len(messages))
+	for i, m := range messages {
+		oaiMessages[i] = openai.ChatCompletionMessage{
+			Role:    m.Role,
+			Content: m.Content,
+		}
+	}
+
+	resp, err := c.client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
+		Model:       c.chatModel,
+		Messages:    oaiMessages,
+		Temperature: 0.7,
+	})
+	if err != nil {
+		return "", fmt.Errorf("calling ChatGPT: %w", err)
+	}
+
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("no response from ChatGPT")
+	}
+
+	return resp.Choices[0].Message.Content, nil
+}
+
 // ToExpenseFields converts ParsedExpense to validated expense fields
 func (p *ParsedExpense) ToExpenseFields() (name string, amount types.Unsigned, group types.Group, category types.Category, date time.Time, note string, err error) {
 	name = p.Name

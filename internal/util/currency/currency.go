@@ -61,6 +61,15 @@ func FormatVND(amount types.Unsigned) string {
 	return fmt.Sprintf("%d ₫", v)
 }
 
+// FormatVNDSigned formats a signed int64 as compact Vietnamese Dong.
+// Negative values are prefixed with a minus sign.
+func FormatVNDSigned(amount int64) string {
+	if amount < 0 {
+		return "-" + FormatVND(types.Unsigned(-amount))
+	}
+	return FormatVND(types.Unsigned(amount))
+}
+
 func addCommas(n uint64) string {
 	s := strconv.FormatUint(n, 10)
 	var b strings.Builder

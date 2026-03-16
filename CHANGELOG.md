@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- AI Ask feature for natural language expense queries (`/ask`, `/a`, `/q` commands)
+  - Ask about expenses in Vietnamese or English with follow-up conversation support
+  - GPT-powered with current month budget data + 6-month per-month historical breakdowns
+  - Serves as unified help system -- AI can answer bot usage questions too
+  - In-memory conversation history per chat (capped at 10 turns, lost on restart)
+  - Supports inline usage: `/ask how much did I spend this month?`
+  - System prompt with Telegram HTML formatting rules, ranking/comparison instructions
+- `ChatMessage` type and `ChatWithHistory` method on OpenAI client for multi-turn conversations
+- `AskService` with system prompt builder, expense data gatherer, conversation orchestrator
+- `AskPendingData` conversation state for storing chat history
+- `GetMonthlyReports` method on ExpenseService for per-month group/category/summary data
+- Expense Insights feature (`/expenses_insights`) for multi-month spending analysis
+  - Average spending by group/category across 3M/6M/12M/YTD periods
+  - Emergency fund calculator with configurable multiplier (3x/6x/Custom)
+  - Period and EF multiplier selection via inline buttons
+  - Custom EF multiplier input via conversation state
+  - Multi-month batch reading via `GetMultiMonthReports` repository method
+  - `InsightsResult` and `AverageEntry` models
+  - Sheet name helpers: `RecentSheetNames`, `YTDSheetNames`, `SortSheetNames`, `ParseSheetMonth`
 - New "Cafe / Cafe" expense category separated from Food (20 categories total)
   - Aliases: `cf`, `caphe`, `cafe`, `ca phe`
   - Cafe-related items (coffee, milk tea, juice, smoothie) moved from Food to Cafe

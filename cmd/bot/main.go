@@ -70,11 +70,11 @@ func main() {
 	expenseHandler := handler.NewExpenseHandler(expenseService, mappingService, stateManager)
 	gsheetsHandler := handler.NewGSheetsHandler(mappingService, stateManager)
 
-	// Initialize OpenAI client for voice expense (optional)
+	// Initialize OpenAI client for voice and AI features (optional)
 	if cfg.OpenAI.APIKey != "" {
 		openaiClient, err := openai.NewClient(cfg)
 		if err != nil {
-			log.Warn("failed to create OpenAI client, voice features disabled", logrus.Fields{"error": err.Error()})
+			log.Warn("failed to create OpenAI client, AI features disabled", logrus.Fields{"error": err.Error()})
 		} else {
 			voiceExpenseService := service.NewVoiceExpenseService(openaiClient, expenseService, botAPI)
 			expenseHandler.SetVoiceExpenseService(voiceExpenseService)
@@ -82,9 +82,15 @@ func main() {
 				"whisper_model": cfg.OpenAI.GetWhisperModel(),
 				"chat_model":    cfg.OpenAI.GetChatModel(),
 			})
+
+			askService := service.NewAskService(openaiClient, expenseService)
+			expenseHandler.SetAskService(askService)
+			log.Info("ask AI feature enabled", logrus.Fields{
+				"chat_model": cfg.OpenAI.GetChatModel(),
+			})
 		}
 	} else {
-		log.Info("voice expense feature disabled (no OpenAI API key configured)", logrus.Fields{})
+		log.Info("OpenAI features disabled (no API key configured)", logrus.Fields{})
 	}
 
 	// Initialize bot

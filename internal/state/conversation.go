@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"expensemate-tgbot/internal/repository/openai"
 	"expensemate-tgbot/internal/types"
 )
 
@@ -24,20 +25,35 @@ type VoicePendingData struct {
 	ParsedNote   string
 }
 
+// InsightsPendingData stores data for custom EF multiplier input
+type InsightsPendingData struct {
+	Period         string // "3", "6", "12", "ytd"
+	ExcludeCurrent bool
+}
+
+// AskPendingData stores conversation history for the AI ask flow
+type AskPendingData struct {
+	History []openai.ChatMessage
+}
+
 // Manager handles conversation state for users
 type Manager struct {
-	states            map[int64]string
-	voicePendingData  map[int64]*VoicePendingData
-	budgetPendingData map[int64]*BudgetPendingData
-	mu                sync.RWMutex
+	states              map[int64]string
+	voicePendingData    map[int64]*VoicePendingData
+	budgetPendingData   map[int64]*BudgetPendingData
+	insightsPendingData map[int64]*InsightsPendingData
+	askPendingData      map[int64]*AskPendingData
+	mu                  sync.RWMutex
 }
 
 // NewManager creates a new conversation state manager
 func NewManager() *Manager {
 	return &Manager{
-		states:            make(map[int64]string),
-		voicePendingData:  make(map[int64]*VoicePendingData),
-		budgetPendingData: make(map[int64]*BudgetPendingData),
+		states:              make(map[int64]string),
+		voicePendingData:    make(map[int64]*VoicePendingData),
+		budgetPendingData:   make(map[int64]*BudgetPendingData),
+		insightsPendingData: make(map[int64]*InsightsPendingData),
+		askPendingData:      make(map[int64]*AskPendingData),
 	}
 }
 
@@ -49,6 +65,8 @@ const (
 	StateGSheetsUpdateActivePage = "gsheets:update_current_page"
 	StateBudgetSetGroupPrefix    = "budget:set_group:"
 	StateBudgetSetCategoryPrefix = "budget:set_category:"
+	StateInsightsCustomEF        = "insights:ef_custom"
+	StateAskConversation         = "ask:conversation"
 )
 
 // BuildState creates a state string from command and action
@@ -125,4 +143,46 @@ func (m *Manager) ClearBudgetPendingData(chatID int64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.budgetPendingData, chatID)
+}
+
+// SetInsightsPendingData stores pending insights data for custom EF input
+func (m *Manager) SetInsightsPendingData(chatID int64, data *InsightsPendingData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.insightsPendingData[chatID] = data
+}
+
+// GetInsightsPendingData retrieves pending insights data
+func (m *Manager) GetInsightsPendingData(chatID int64) *InsightsPendingData {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.insightsPendingData[chatID]
+}
+
+// ClearInsightsPendingData clears pending insights data
+func (m *Manager) ClearInsightsPendingData(chatID int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.insightsPendingData, chatID)
+}
+
+// SetAskPendingData stores pending ask conversation data
+func (m *Manager) SetAskPendingData(chatID int64, data *AskPendingData) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.askPendingData[chatID] = data
+}
+
+// GetAskPendingData retrieves pending ask conversation data
+func (m *Manager) GetAskPendingData(chatID int64) *AskPendingData {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.askPendingData[chatID]
+}
+
+// ClearAskPendingData clears pending ask conversation data
+func (m *Manager) ClearAskPendingData(chatID int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.askPendingData, chatID)
 }

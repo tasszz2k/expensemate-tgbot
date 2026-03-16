@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -50,6 +51,10 @@ const (
 	GroupReportWithBudgetRange    = "I3:L10"
 	ExpensesSummaryRange          = "I11:L13"
 	CategoryReportWithBudgetRange = "N3:R22"
+
+	// Insights (multi-month aggregation)
+	InsightsGroupAndSummaryRange = "I3:J13"
+	InsightsCategoryRange        = "N3:O22"
 
 	// New month sheet creation
 	ExpenseDataStartRow    = 10
@@ -121,8 +126,8 @@ func IsValidSheetName(input string) bool {
 	return sheetNamePattern.MatchString(input)
 }
 
-// parseSheetMonth parses a YYYY_MM sheet name into a time.Time
-func parseSheetMonth(name string) (time.Time, error) {
+// ParseSheetMonth parses a YYYY_MM sheet name into a time.Time
+func ParseSheetMonth(name string) (time.Time, error) {
 	parts := strings.SplitN(name, "_", 2)
 	if len(parts) != 2 {
 		return time.Time{}, fmt.Errorf("invalid sheet name format: %s", name)
@@ -140,7 +145,7 @@ func parseSheetMonth(name string) (time.Time, error) {
 
 // NextMonthName returns the next month sheet name (handles year rollover, e.g. 2025_12 -> 2026_01)
 func NextMonthName(current string) (string, error) {
-	t, err := parseSheetMonth(current)
+	t, err := ParseSheetMonth(current)
 	if err != nil {
 		return "", err
 	}
@@ -150,10 +155,82 @@ func NextMonthName(current string) (string, error) {
 
 // PrevMonthName returns the previous month sheet name (handles year rollover, e.g. 2026_01 -> 2025_12)
 func PrevMonthName(current string) (string, error) {
-	t, err := parseSheetMonth(current)
+	t, err := ParseSheetMonth(current)
 	if err != nil {
 		return "", err
 	}
 	prev := t.AddDate(0, -1, 0)
 	return fmt.Sprintf("%04d_%02d", prev.Year(), prev.Month()), nil
+}
+
+// FormatSheetMonth formats a time.Time into a YYYY_MM sheet name
+func FormatSheetMonth(t time.Time) string {
+	return fmt.Sprintf("%04d_%02d", t.Year(), t.Month())
+}
+
+// SortSheetNames sorts sheet names chronologically (oldest first)
+func SortSheetNames(names []string) []string {
+	sorted := make([]string, len(names))
+	copy(sorted, names)
+	sort.Slice(sorted, func(i, j int) bool {
+		ti, ei := ParseSheetMonth(sorted[i])
+		tj, ej := ParseSheetMonth(sorted[j])
+		if ei != nil || ej != nil {
+			return sorted[i] < sorted[j]
+		}
+		return ti.Before(tj)
+	})
+	return sorted
+}
+
+// RecentSheetNames determines which monthly sheets to query for a given period.
+// It walks backward from activePage for `months` months and returns the target
+// sheet names, which of those were found in allNames, and which were missing.
+func RecentSheetNames(allNames []string, months int, activePage string) (target, found, missing []string) {
+	nameSet := make(map[string]bool, len(allNames))
+	for _, n := range allNames {
+		nameSet[n] = true
+	}
+
+	t, err := ParseSheetMonth(activePage)
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	for i := 0; i < months; i++ {
+		name := FormatSheetMonth(t.AddDate(0, -i, 0))
+		target = append(target, name)
+		if nameSet[name] {
+			found = append(found, name)
+		} else {
+			missing = append(missing, name)
+		}
+	}
+	return target, found, missing
+}
+
+// YTDSheetNames returns sheet names from January of the active page's year
+// through the active page month.
+func YTDSheetNames(allNames []string, activePage string) (target, found, missing []string) {
+	t, err := ParseSheetMonth(activePage)
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	nameSet := make(map[string]bool, len(allNames))
+	for _, n := range allNames {
+		nameSet[n] = true
+	}
+
+	jan := time.Date(t.Year(), 1, 1, 0, 0, 0, 0, time.UTC)
+	for cur := jan; !cur.After(t); cur = cur.AddDate(0, 1, 0) {
+		name := FormatSheetMonth(cur)
+		target = append(target, name)
+		if nameSet[name] {
+			found = append(found, name)
+		} else {
+			missing = append(missing, name)
+		}
+	}
+	return target, found, missing
 }
