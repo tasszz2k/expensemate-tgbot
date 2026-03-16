@@ -23,7 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Average spending by group/category across 3M/6M/12M/YTD periods
   - Emergency fund calculator with configurable multiplier (3x/6x/Custom)
   - Period and EF multiplier selection via inline buttons
+  - Option to exclude current (incomplete) month from averages (default: excluded)
   - Custom EF multiplier input via conversation state
+  - `FormatVNDSigned` for correct display of negative currency (e.g., investment losses)
+  - Summary icons for Self Expenses, Total Expenses, Net Change
   - Multi-month batch reading via `GetMultiMonthReports` repository method
   - `InsightsResult` and `AverageEntry` models
   - Sheet name helpers: `RecentSheetNames`, `YTDSheetNames`, `SortSheetNames`, `ParseSheetMonth`
